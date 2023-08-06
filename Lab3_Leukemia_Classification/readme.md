@@ -4,5 +4,4 @@ Implement ResNet18/ResNet50/ResNet152 architecture to analyze acute lymphoblasti
 * Upload your prediction result to the Kaggle competition
 * Plot the confusion matrix and the accuracy curve to evaluate the performance.
 
-
 ## Demo questions:
