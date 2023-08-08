@@ -5,3 +5,6 @@ Implement ResNet18/ResNet50/ResNet152 architecture to analyze acute lymphoblasti
 * Plot the confusion matrix and the accuracy curve to evaluate the performance.
 
 ## Demo questions:
+1. Explain how do you implement ResNet
+2. How ResNet solve gradient vanishing problem
+3. Explain why ResNet can handle input of different size (A: By average pool)
