@@ -8,8 +8,9 @@ from torch.utils.data import Dataset as torchData
 from torchvision.datasets.folder import default_loader as imgloader
 from torch import stack
 def get_key(fp):
-    filename = fp.split('/')[-1]
+    filename = fp.split('\\')[-1]
     filename = filename.split('.')[0].replace('frame', '')
+    filename = filename.replace("train_img\\", '') 
     return int(filename)
 
 class Dataset_Dance(torchData):
@@ -24,10 +25,10 @@ class Dataset_Dance(torchData):
         super().__init__()
         assert mode in ['train', 'val'], "There is no such mode !!!"
         if mode == 'train':
-            self.img_folder     = sorted(glob(os.path.join(root, 'train/train_img/*.png')), key=get_key)
+            self.img_folder     = sorted(glob(os.path.join(root, "train\\train_img\\*.png")), key=get_key)
             self.prefix = 'train'
         elif mode == 'val':
-            self.img_folder     = sorted(glob(os.path.join(root, 'val/val_img/*.png')), key=get_key)
+            self.img_folder     = sorted(glob(os.path.join(root, "val\\val_img\\*.png")), key=get_key)
             self.prefix = 'val'
         else:
             raise NotImplementedError
@@ -45,7 +46,7 @@ class Dataset_Dance(torchData):
         imgs = []
         labels = []
         for i in range(self.video_len):
-            label_list = self.img_folder[(index*self.video_len)+i].split('/')
+            label_list = self.img_folder[(index*self.video_len)+i].split('\\')
             label_list[-2] = self.prefix + '_label'
             
             img_name    = self.img_folder[(index*self.video_len)+i]
@@ -54,6 +55,3 @@ class Dataset_Dance(torchData):
             imgs.append(self.transform(imgloader(img_name)))
             labels.append(self.transform(imgloader(label_name)))
         return stack(imgs), stack(labels)
-    
-    
-

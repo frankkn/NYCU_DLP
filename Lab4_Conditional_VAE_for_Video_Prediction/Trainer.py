@@ -35,20 +35,44 @@ def kl_criterion(mu, logvar, batch_size):
 
 class kl_annealing():
     def __init__(self, args, current_epoch=0):
-        # TODO
-        raise NotImplementedError
-        
+        self.cur_iter = -1
+
+        self.type = args.kl_anneal_type
+        self.cycle = args.kl_anneal_cycle
+        self.ratio = args.kl_anneal_ratio
+
+        self.total_iter = args.num_epoch
+        self.beta_list = np.ones(self.total_iter)
+
+        if(self.type == 'Cyclical'):
+            self.frange_cycle_linear(self.total_iter, n_cycle=self.cycle, ratio=self.ratio)
+
+        elif(self.type == 'Monotonic'):
+            self.cycle= 1
+            self.frange_cycle_linear(self.total_iter, n_cycle=self.cycle, ratio=0.25)
+
+        elif(self.type == 'None'):
+            self.beta_list = np.zeros(self.total_iter)
+
     def update(self):
-        # TODO
-        raise NotImplementedError
+        self.cur_iter += 1
     
     def get_beta(self):
-        # TODO
-        raise NotImplementedError
+        self.update()
+        return self.beta_list[self.cur_iter]
+
 
     def frange_cycle_linear(self, n_iter, start=0.0, stop=1.0,  n_cycle=1, ratio=1):
-        # TODO
-        raise NotImplementedError
+        period = n_iter / n_cycle
+        step = (stop - start) / (period * ratio)
+
+        for c in range(n_cycle):
+            v, i = start, 0
+            while v <= stop and (int(i + c * period) < n_iter):
+                self.beta_list[int(i + c * period)] = v
+                v += step
+                i += 1
+        
         
 
 class VAE_Model(nn.Module):
@@ -169,8 +193,8 @@ class VAE_Model(nn.Module):
         return val_loader
     
     def teacher_forcing_ratio_update(self):
-        # TODO
-        raise NotImplementedError
+        self.tfr -= self.tfr_d_step
+        self.tfr = max(self.tfr, 0.0)
             
     def tqdm_bar(self, mode, pbar, loss, lr):
         pbar.set_description(f"({mode}) Epoch {self.current_epoch}, lr:{lr}" , refresh=False)
