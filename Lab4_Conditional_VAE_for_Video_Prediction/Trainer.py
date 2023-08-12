@@ -42,7 +42,7 @@ class kl_annealing():
         self.cycle = args.kl_anneal_cycle
         self.ratio = args.kl_anneal_ratio
 
-        self.total_iter = args.num_epoch
+        self.total_iter = args.num_epoch * args.train_vi_len
         self.beta_list = np.ones(self.total_iter)
 
         if(self.type == 'Cyclical'):
@@ -139,6 +139,7 @@ class VAE_Model(nn.Module):
     @torch.no_grad()
     def eval(self):
         val_loader = self.val_dataloader()
+        print(len(val_loader))
         for (img, label) in (pbar := tqdm(val_loader, ncols=120)):
             img = img.to(self.args.device)
             label = label.to(self.args.device)
@@ -168,11 +169,14 @@ class VAE_Model(nn.Module):
             human_feat_hat = self.frame_transformation(out) # X1 (prev pred frame)
             ground_truth = self.frame_transformation(img[i]) # X2
 
+            z = z.repeat(2, 1, 1, 1)
+            parm = torch.cat([label_feat, human_feat_hat, z], dim=1)
+
             parm = self.Decoder_Fusion(human_feat_hat, label_feat, z) # (P2, X1, N(0, I))
             out = self.Generator(parm) # X2_hat
             
             if adapt_TeacherForcing:
-                mse += self.mse_criterion(out, ground_truth) # X2_hat vs ground truth
+                mse += self.mse_criterion(out, img[i]) # X2_hat vs ground truth
             else:
                 mse += self.mse_criterion(out, human_feat_hat) # X2_hat vs prev pred frame
 
@@ -195,8 +199,41 @@ class VAE_Model(nn.Module):
 
     
     def val_one_step(self, img, label):
-        # TODO
         raise NotImplementedError
+        img = img.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
+        label = label.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
+        assert label.shape[0] == 630, "Validation pose seqence should be 630"
+        assert img.shape[0] == 630, "Validation video seqence should be 630"
+
+        decoded_frame_list = [img[0].cpu()]
+        label_list = []
+
+        # Normal normal
+        last_human_feat = self.frame_transformation(img[0]) # X1
+        first_templete = last_human_feat.clone() 
+        out = img[0]
+
+        for i in range(1, self.val_vi_len):
+            z = torch.cuda.FloatTensor(1, self.args.N_dim, self.args.frame_H, self.args.frame_W).normal_() # Z = N(0, I)
+            label_feat = self.label_transformation(label[i]) # P2
+            human_feat_hat = self.frame_transformation(out) # X1
+            
+            parm = self.Decoder_Fusion(human_feat_hat, label_feat, z) # (P2, X1, N(0, I))
+            out = self.Generator(parm) # X2
+            
+            decoded_frame_list.append(out.cpu()) # X2 - X630
+            label_list.append(label[i].cpu()) # P2 - P630
+
+        generated_frame = stack(decoded_frame_list).permute(1, 0, 2, 3, 4)
+        label_frame = stack(label_list).permute(1, 0, 2, 3, 4)
+
+        os.makedirs("./validation_frame", exist_ok=True)
+
+        self.make_gif(generated_frame[0], "./validation_frame/pred_seq.gif")
+        self.make_gif(label_frame[0], "./validation_frame/pose.gif")
+
+        return loss
+
                 
     def make_gif(self, images_list, img_name):
         new_list = []

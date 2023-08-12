@@ -127,6 +127,10 @@ class Decoder_Fusion(nn.Sequential):
         
     def forward(self, img, label, parm):
         # Concatenate the sampled noise vector with feature representations
+        # print("img size:", img.size())
+        # print("label size:", label.size())
+        # print("parm size:", parm.size())
+
         feature = torch.cat([img, label, parm], dim=1)
         return super().forward(feature)
     
