@@ -111,6 +111,7 @@ class VAE_Model(nn.Module):
         pass
     
     def training_stage(self):
+        self.optim.zero_grad()
         for i in range(self.args.num_epoch):
             train_loader = self.train_dataloader()
             adapt_TeacherForcing = True if random.random() < self.tfr else False
@@ -139,7 +140,6 @@ class VAE_Model(nn.Module):
     @torch.no_grad()
     def eval(self):
         val_loader = self.val_dataloader()
-        print(len(val_loader))
         for (img, label) in (pbar := tqdm(val_loader, ncols=120)):
             img = img.to(self.args.device)
             label = label.to(self.args.device)
@@ -179,15 +179,18 @@ class VAE_Model(nn.Module):
                 mse += self.mse_criterion(out, img[i]) # X2_hat vs ground truth
             else:
                 mse += self.mse_criterion(out, human_feat_hat) # X2_hat vs prev pred frame
-
+            
             _, mu, logvar = self.Gaussian_Predictor(ground_truth, label_feat) # latent distribution
             kld += kl_criterion(mu, logvar, self.batch_size)
+
+            # print(f'mse:{mse} kld:{kld}')
 
             # decoded_frame_list.append(out.cpu())
             # label_list.append(label[i].cpu())
 
         beta = self.kl_annealing.get_beta()
         loss = mse + kld * beta
+        # print(f"loss:{loss}")
         loss.backward()
 
         self.optim.step()
@@ -195,17 +198,16 @@ class VAE_Model(nn.Module):
         # generated_frame = stack(decoded_frame_list).permute(1, 0, 2, 3, 4)
         # label_frame = stack(label_list).permute(1, 0, 2, 3, 4)
 
-        return loss / self.train_vi_len
+        return loss / (self.train_vi_len-1)
 
     
     def val_one_step(self, img, label):
-        raise NotImplementedError
         img = img.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
         label = label.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
         assert label.shape[0] == 630, "Validation pose seqence should be 630"
         assert img.shape[0] == 630, "Validation video seqence should be 630"
 
-        decoded_frame_list = [img[0].cpu()]
+        decoded_frame_list = [img[0].cpu()] # X1
         label_list = []
 
         # Normal normal
@@ -213,16 +215,27 @@ class VAE_Model(nn.Module):
         first_templete = last_human_feat.clone() 
         out = img[0]
 
+        mse = 0
+        kld = 0
+
         for i in range(1, self.val_vi_len):
             z = torch.cuda.FloatTensor(1, self.args.N_dim, self.args.frame_H, self.args.frame_W).normal_() # Z = N(0, I)
             label_feat = self.label_transformation(label[i]) # P2
             human_feat_hat = self.frame_transformation(out) # X1
-            
+            ground_truth = self.frame_transformation(img[i]) # X2
+
             parm = self.Decoder_Fusion(human_feat_hat, label_feat, z) # (P2, X1, N(0, I))
             out = self.Generator(parm) # X2
+
+            mse += self.mse_criterion(out, img[i]) # 
+            _, mu, logvar = self.Gaussian_Predictor(ground_truth, label_feat) # latent distribution
+            kld += kl_criterion(mu, logvar, self.batch_size)
             
             decoded_frame_list.append(out.cpu()) # X2 - X630
             label_list.append(label[i].cpu()) # P2 - P630
+
+        beta = self.kl_annealing.get_beta()
+        loss = mse + kld * beta
 
         generated_frame = stack(decoded_frame_list).permute(1, 0, 2, 3, 4)
         label_frame = stack(label_list).permute(1, 0, 2, 3, 4)
@@ -232,7 +245,7 @@ class VAE_Model(nn.Module):
         self.make_gif(generated_frame[0], "./validation_frame/pred_seq.gif")
         self.make_gif(label_frame[0], "./validation_frame/pose.gif")
 
-        return loss
+        return loss / (self.val_vi_len-1)
 
                 
     def make_gif(self, images_list, img_name):
@@ -327,7 +340,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument('--batch_size',    type=int,    default=2)
-    parser.add_argument('--lr',            type=float,  default=0.001,     help="initial learning rate")
+    parser.add_argument('--lr',            type=float,  default=0.0001,     help="initial learning rate")
     parser.add_argument('--device',        type=str, choices=["cuda", "cpu"], default="cuda")
     parser.add_argument('--optim',         type=str, choices=["Adam", "AdamW"], default="Adam")
     parser.add_argument('--gpu',           type=int, default=1)
