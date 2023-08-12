@@ -22,6 +22,7 @@ from math import log10
 
 def Generate_PSNR(imgs1, imgs2, data_range=1.):
     """PSNR for torch tensor"""
+    # mse = nn.functional.mse_loss(imgs1, imgs2, reduction='mean')
     mse = nn.functional.mse_loss(imgs1, imgs2) # wrong computation for batch size > 1
     psnr = 20 * log10(data_range) - 10 * torch.log10(mse)
     return psnr
@@ -35,7 +36,7 @@ def kl_criterion(mu, logvar, batch_size):
 
 class kl_annealing():
     def __init__(self, args, current_epoch=0):
-        self.cur_iter = -1
+        self.cur_iter = 0
 
         self.type = args.kl_anneal_type
         self.cycle = args.kl_anneal_cycle
@@ -58,7 +59,6 @@ class kl_annealing():
         self.cur_iter += 1
     
     def get_beta(self):
-        self.update()
         return self.beta_list[self.cur_iter]
 
 
@@ -146,8 +146,53 @@ class VAE_Model(nn.Module):
             self.tqdm_bar('val', pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0])
     
     def training_one_step(self, img, label, adapt_TeacherForcing):
-        # TODO
-        raise NotImplementedError
+        img = img.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
+        label = label.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
+        assert label.shape[0] == 16, "Training pose seqence should be 16"
+        assert img.shape[0] == 16, "Training video seqence should be 16"
+
+        # decoded_frame_list = [img[0].cpu()]
+        # label_list = []
+
+        # Normal normal
+        last_human_feat = self.frame_transformation(img[0])
+        first_templete = last_human_feat.clone()
+        out = img[0]
+
+        mse = 0
+        kld = 0
+
+        for i in range(1, self.train_vi_len):
+            z = torch.cuda.FloatTensor(1, self.args.N_dim, self.args.frame_H, self.args.frame_W).normal_() # N(0, I)
+            label_feat = self.label_transformation(label[i]) # P2
+            human_feat_hat = self.frame_transformation(out) # X1 (prev pred frame)
+            ground_truth = self.frame_transformation(img[i]) # X2
+
+            parm = self.Decoder_Fusion(human_feat_hat, label_feat, z) # (P2, X1, N(0, I))
+            out = self.Generator(parm) # X2_hat
+            
+            if adapt_TeacherForcing:
+                mse += self.mse_criterion(out, ground_truth) # X2_hat vs ground truth
+            else:
+                mse += self.mse_criterion(out, human_feat_hat) # X2_hat vs prev pred frame
+
+            _, mu, logvar = self.Gaussian_Predictor(ground_truth, label_feat) # latent distribution
+            kld += kl_criterion(mu, logvar, self.batch_size)
+
+            # decoded_frame_list.append(out.cpu())
+            # label_list.append(label[i].cpu())
+
+        beta = self.kl_annealing.get_beta()
+        loss = mse + kld * beta
+        loss.backward()
+
+        self.optim.step()
+
+        # generated_frame = stack(decoded_frame_list).permute(1, 0, 2, 3, 4)
+        # label_frame = stack(label_list).permute(1, 0, 2, 3, 4)
+
+        return loss / self.train_vi_len
+
     
     def val_one_step(self, img, label):
         # TODO

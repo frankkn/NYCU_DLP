@@ -161,12 +161,12 @@ class Test_model(VAE_Model):
         out = img[0]
         
         for i in range(1, self.val_vi_len):
-            z = torch.cuda.FloatTensor(1, self.args.N_dim, self.args.frame_H, self.args.frame_W).normal_()
-            label_feat = self.label_transformation(label[i])
-            human_feat_hat = self.frame_transformation(out)
+            z = torch.cuda.FloatTensor(1, self.args.N_dim, self.args.frame_H, self.args.frame_W).normal_() # N(0, I)
+            label_feat = self.label_transformation(label[i]) # P2
+            human_feat_hat = self.frame_transformation(out) # X1
             
-            parm = self.Decoder_Fusion(human_feat_hat, label_feat, z)    
-            out = self.Generator(parm)
+            parm = self.Decoder_Fusion(human_feat_hat, label_feat, z) # (P2, X1, N(0, I))
+            out = self.Generator(parm) # X2
             
             decoded_frame_list.append(out.cpu())
             label_list.append(label[i].cpu())

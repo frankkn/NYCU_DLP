@@ -103,7 +103,10 @@ class Gaussian_Predictor(nn.Sequential):
         feature = torch.cat([img, label], dim=1)
         parm = super().forward(feature)
         mu, logvar = torch.chunk(parm, 2, dim=1)
-        z = self.reparameterize(mu, logvar)
+        # z是模型使用reparameterization trick從給定的均值(mu)和對數變異數(logvar)中生成的潛在變數。
+        # 這個潛在變數通常被視為模型在隱藏空間中的表示。
+        # VAE中，z可以看作是從隱藏空間中隨機生成的一個點，用於生成數據。
+        z = self.reparameterize(mu, logvar) 
 
         return z, mu, logvar
     
