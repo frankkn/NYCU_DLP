@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 from torchvision import transforms
 from torch.utils.data import DataLoader
+import torch.nn.utils as utils
 
 from modules import Generator, Gaussian_Predictor, Decoder_Fusion, Label_Encoder, RGB_Encoder
 
@@ -111,7 +112,14 @@ class VAE_Model(nn.Module):
         pass
     
     def training_stage(self):
+        # self.frame_transformation.zero_grad() 
+        # self.label_transformation.zero_grad() 
+        # self.Gaussian_Predictor.zero_grad() 
+        # self.Decoder_Fusion.zero_grad() 
+        # self.Generator.zero_grad()
+
         self.optim.zero_grad()
+
         for i in range(self.args.num_epoch):
             train_loader = self.train_dataloader()
             adapt_TeacherForcing = True if random.random() < self.tfr else False
@@ -152,7 +160,7 @@ class VAE_Model(nn.Module):
         assert label.shape[0] == 16, "Training pose seqence should be 16"
         assert img.shape[0] == 16, "Training video seqence should be 16"
 
-        # decoded_frame_list = [img[0].cpu()]
+        decoded_frame_list = [img[0].cpu()]
         # label_list = []
 
         # Normal normal
@@ -164,34 +172,40 @@ class VAE_Model(nn.Module):
         kld = 0
 
         for i in range(1, self.train_vi_len):
-            z = torch.cuda.FloatTensor(1, self.args.N_dim, self.args.frame_H, self.args.frame_W).normal_() # N(0, I)
+            z = torch.randn(2, self.args.N_dim, self.args.frame_H, self.args.frame_W).cuda()  # 使用 torch.randn 生成隨機張量
+            # z = torch.cuda.FloatTensor(1, self.args.N_dim, self.args.frame_H, self.args.frame_W).normal_() # N(0, I)
             label_feat = self.label_transformation(label[i]) # P2
             human_feat_hat = self.frame_transformation(out) # X1 (prev pred frame)
             ground_truth = self.frame_transformation(img[i]) # X2
 
-            z = z.repeat(2, 1, 1, 1)
-            parm = torch.cat([label_feat, human_feat_hat, z], dim=1)
+            # z = z.repeat(2, 1, 1, 1)
+            # parm = torch.cat([label_feat, human_feat_hat, z], dim=1)
 
             parm = self.Decoder_Fusion(human_feat_hat, label_feat, z) # (P2, X1, N(0, I))
             out = self.Generator(parm) # X2_hat
+
+            # print("Out shape:", out.shape) # [2, 3, 32, 64]
+            # print("human_feat_hat shape:", human_feat_hat.shape) # [2, 128, 32, 64]
             
             if adapt_TeacherForcing:
                 mse += self.mse_criterion(out, img[i]) # X2_hat vs ground truth
             else:
-                mse += self.mse_criterion(out, human_feat_hat) # X2_hat vs prev pred frame
+                mse += self.mse_criterion(out, decoded_frame_list[-1]) # X2_hat vs prev pred frame
             
             _, mu, logvar = self.Gaussian_Predictor(ground_truth, label_feat) # latent distribution
             kld += kl_criterion(mu, logvar, self.batch_size)
 
             # print(f'mse:{mse} kld:{kld}')
 
-            # decoded_frame_list.append(out.cpu())
+            decoded_frame_list.append(out.cpu())
             # label_list.append(label[i].cpu())
 
         beta = self.kl_annealing.get_beta()
         loss = mse + kld * beta
         # print(f"loss:{loss}")
         loss.backward()
+
+        nn.utils.clip_grad_norm_(self.parameters(), 1.) # solve loss becomes nan 
 
         self.optim.step()
 
