@@ -209,7 +209,8 @@ class VAE_Model(nn.Module):
             # label_list.append(label[i].cpu())
 
         beta = self.kl_annealing.get_beta()
-        loss = mse + kld * beta
+        epsilon = 1e-8
+        loss = mse + kld * beta + epsilon
         # print(f"loss:{loss}")
         loss.backward()
 
@@ -368,7 +369,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument('--batch_size',    type=int,    default=2)
-    parser.add_argument('--lr',            type=float,  default=0.001,     help="initial learning rate")
+    parser.add_argument('--lr',            type=float,  default=0.0001,     help="initial learning rate")
     parser.add_argument('--device',        type=str, choices=["cuda", "cpu"], default="cuda")
     parser.add_argument('--optim',         type=str, choices=["Adam", "AdamW"], default="Adam")
     parser.add_argument('--gpu',           type=int, default=1)
