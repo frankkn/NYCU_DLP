@@ -23,8 +23,8 @@ from math import log10
 
 def Generate_PSNR(imgs1, imgs2, data_range=1.):
     """PSNR for torch tensor"""
-    # mse = nn.functional.mse_loss(imgs1, imgs2, reduction='mean')
-    mse = nn.functional.mse_loss(imgs1, imgs2) # wrong computation for batch size > 1
+    mse = nn.functional.mse_loss(imgs1, imgs2, reduction='mean')
+    # mse = nn.functional.mse_loss(imgs1, imgs2) # wrong computation for batch size > 1
     psnr = 20 * log10(data_range) - 10 * torch.log10(mse)
     return psnr
 
@@ -118,7 +118,7 @@ class VAE_Model(nn.Module):
         # self.Decoder_Fusion.zero_grad() 
         # self.Generator.zero_grad()
 
-        self.optim.zero_grad()
+        # self.optim.zero_grad()
 
         for i in range(self.args.num_epoch):
             train_loader = self.train_dataloader()
@@ -155,6 +155,14 @@ class VAE_Model(nn.Module):
             self.tqdm_bar('val', pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0])
     
     def training_one_step(self, img, label, adapt_TeacherForcing):
+        self.frame_transformation.zero_grad() 
+        self.label_transformation.zero_grad() 
+        self.Gaussian_Predictor.zero_grad() 
+        self.Decoder_Fusion.zero_grad() 
+        self.Generator.zero_grad()
+
+        self.optim.zero_grad()
+
         img = img.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
         label = label.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
         assert label.shape[0] == 16, "Training pose seqence should be 16"
@@ -188,9 +196,9 @@ class VAE_Model(nn.Module):
             # print("human_feat_hat shape:", human_feat_hat.shape) # [2, 128, 32, 64]
             
             if adapt_TeacherForcing:
-                mse += self.mse_criterion(out, img[i]) # X2_hat vs ground truth
+                mse += self.mse_criterion(out, img[i].to(out.device)) # X2_hat vs ground truth
             else:
-                mse += self.mse_criterion(out, decoded_frame_list[-1]) # X2_hat vs prev pred frame
+                mse += self.mse_criterion(out, decoded_frame_list[-1].to(out.device)) # X2_hat vs prev pred frame
             
             _, mu, logvar = self.Gaussian_Predictor(ground_truth, label_feat) # latent distribution
             kld += kl_criterion(mu, logvar, self.batch_size)
@@ -241,7 +249,7 @@ class VAE_Model(nn.Module):
             parm = self.Decoder_Fusion(human_feat_hat, label_feat, z) # (P2, X1, N(0, I))
             out = self.Generator(parm) # X2
 
-            mse += self.mse_criterion(out, img[i]) # 
+            mse += self.mse_criterion(out, img[i]) 
             _, mu, logvar = self.Gaussian_Predictor(ground_truth, label_feat) # latent distribution
             kld += kl_criterion(mu, logvar, self.batch_size)
             
@@ -251,6 +259,8 @@ class VAE_Model(nn.Module):
         beta = self.kl_annealing.get_beta()
         loss = mse + kld * beta
 
+        decoded_frame_list = decoded_frame_list[1:]
+
         generated_frame = stack(decoded_frame_list).permute(1, 0, 2, 3, 4)
         label_frame = stack(label_list).permute(1, 0, 2, 3, 4)
 
@@ -258,6 +268,9 @@ class VAE_Model(nn.Module):
 
         self.make_gif(generated_frame[0], "./validation_frame/pred_seq.gif")
         self.make_gif(label_frame[0], "./validation_frame/pose.gif")
+
+        # PSNR = Generate_PSNR(generated_frame, label_frame)
+        # print(f'PSNR:{PSNR}')
 
         return loss / (self.val_vi_len-1)
 
@@ -302,8 +315,9 @@ class VAE_Model(nn.Module):
         return val_loader
     
     def teacher_forcing_ratio_update(self):
-        self.tfr -= self.tfr_d_step
-        self.tfr = max(self.tfr, 0.0)
+        if self.current_epoch % self.tfr_sde == 0:
+            self.tfr -= self.args.tfr_d_step
+            self.tfr = max(self.tfr, 0.0)
             
     def tqdm_bar(self, mode, pbar, loss, lr):
         pbar.set_description(f"({mode}) Epoch {self.current_epoch}, lr:{lr}" , refresh=False)
@@ -354,7 +368,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument('--batch_size',    type=int,    default=2)
-    parser.add_argument('--lr',            type=float,  default=0.0001,     help="initial learning rate")
+    parser.add_argument('--lr',            type=float,  default=0.001,     help="initial learning rate")
     parser.add_argument('--device',        type=str, choices=["cuda", "cpu"], default="cuda")
     parser.add_argument('--optim',         type=str, choices=["Adam", "AdamW"], default="Adam")
     parser.add_argument('--gpu',           type=int, default=1)

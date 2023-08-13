@@ -62,7 +62,7 @@ def calculate_PSNR(save_root, gen_image, idx):
 def get_key(fp):
     filename = fp.split('\\')[-1]
     filename = filename.split('.')[0].replace('frame', '')
-    filename = filename.replace("train_img\\", '') 
+    filename = filename.replace("test_img\\", '') 
     return int(filename)
 
 from torch.utils.data import DataLoader

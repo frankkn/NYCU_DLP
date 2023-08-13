@@ -2,3 +2,4 @@ LAB4_Dataset/
 Demo_Test/
 __pycache__
 .ipynb_checkpoints
+checkpoint/*.ckpt
