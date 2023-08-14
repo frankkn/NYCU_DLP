@@ -28,7 +28,6 @@ def Generate_PSNR(imgs1, imgs2, data_range=1.):
     psnr = 20 * log10(data_range) - 10 * torch.log10(mse)
     return psnr
 
-
 def kl_criterion(mu, logvar, batch_size):
   KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
   KLD /= batch_size  
@@ -62,7 +61,6 @@ class kl_annealing():
     def get_beta(self):
         return self.beta_list[self.cur_iter]
 
-
     def frange_cycle_linear(self, n_iter, start=0.0, stop=1.0,  n_cycle=1, ratio=1):
         period = n_iter / n_cycle
         step = (stop - start) / (period * ratio)
@@ -73,8 +71,7 @@ class kl_annealing():
                 self.beta_list[int(i + c * period)] = v
                 v += step
                 i += 1
-        
-        
+
 
 class VAE_Model(nn.Module):
     def __init__(self, args):
@@ -106,28 +103,28 @@ class VAE_Model(nn.Module):
         self.train_vi_len = args.train_vi_len
         self.val_vi_len   = args.val_vi_len
         self.batch_size = args.batch_size
-        
+
+        self.train_loss_list = []
+        self.val_PSNR_list = []
+        self.tfr_list = []
         
     def forward(self, img, label):
         pass
     
     def training_stage(self):
-        # self.frame_transformation.zero_grad() 
-        # self.label_transformation.zero_grad() 
-        # self.Gaussian_Predictor.zero_grad() 
-        # self.Decoder_Fusion.zero_grad() 
-        # self.Generator.zero_grad()
-
-        # self.optim.zero_grad()
 
         for i in range(self.args.num_epoch):
             train_loader = self.train_dataloader()
             adapt_TeacherForcing = True if random.random() < self.tfr else False
+
+            train_loss = 0
             
             for (img, label) in (pbar := tqdm(train_loader, ncols=120)):
                 img = img.to(self.args.device)
                 label = label.to(self.args.device)
                 loss = self.training_one_step(img, label, adapt_TeacherForcing)
+
+                train_loss += loss
                 
                 beta = self.kl_annealing.get_beta()
                 if adapt_TeacherForcing:
@@ -137,13 +134,18 @@ class VAE_Model(nn.Module):
             
             if self.current_epoch % self.args.per_save == 0:
                 self.save(os.path.join(self.args.save_root, f"epoch={self.current_epoch}.ckpt"))
-                
+
+            self.train_loss_list.append(train_loss / len(train_loader))
             self.eval()
             self.current_epoch += 1
             self.scheduler.step()
+            self.tfr_list.append(self.args.tfr)
             self.teacher_forcing_ratio_update()
             self.kl_annealing.update()
-            
+
+        self.plot_loss_curve()
+        self.plot_val_PSNR()
+        self.plot_tfr()
             
     @torch.no_grad()
     def eval(self):
@@ -221,7 +223,6 @@ class VAE_Model(nn.Module):
 
         return loss / (self.train_vi_len-1)
 
-    
     def val_one_step(self, img, label):
         img = img.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
         label = label.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
@@ -268,11 +269,11 @@ class VAE_Model(nn.Module):
         self.make_gif(generated_frame[0], "./validation_frame/pred_seq.gif")
         self.make_gif(label_frame[0], "./validation_frame/pose.gif")
 
-        # PSNR = Generate_PSNR(generated_frame, label_frame)
+        PSNR = Generate_PSNR(generated_frame, label_frame)
+        self.val_PSNR_list.append(PSNR)
         # print(f'PSNR:{PSNR}')
 
         return loss / (self.val_vi_len-1)
-
                 
     def make_gif(self, images_list, img_name):
         new_list = []
@@ -326,9 +327,9 @@ class VAE_Model(nn.Module):
     def save(self, path):
         torch.save({
             "state_dict": self.state_dict(),
-            "optimizer": self.state_dict(),  
+            "optimizer" : self.state_dict(),  
             "lr"        : self.scheduler.get_last_lr()[0],
-            "tfr"       :   self.tfr,
+            "tfr"       : self.tfr,
             "last_epoch": self.current_epoch
         }, path)
         print(f"save ckpt to {path}")
@@ -340,8 +341,8 @@ class VAE_Model(nn.Module):
             self.args.lr = checkpoint['lr']
             self.tfr = checkpoint['tfr']
             
-            self.optim      = optim.Adam(self.parameters(), lr=self.args.lr)
-            self.scheduler  = optim.lr_scheduler.MultiStepLR(self.optim, milestones=[2, 4], gamma=0.1)
+            self.optim = optim.Adam(self.parameters(), lr=self.args.lr)
+            self.scheduler = optim.lr_scheduler.MultiStepLR(self.optim, milestones=[2, 4], gamma=0.1)
             self.kl_annealing = kl_annealing(self.args, current_epoch=checkpoint['last_epoch'])
             self.current_epoch = checkpoint['last_epoch']
 
@@ -349,6 +350,49 @@ class VAE_Model(nn.Module):
         nn.utils.clip_grad_norm_(self.parameters(), 1.)
         self.optim.step()
 
+    def plot_loss_curve(self):
+        min_loss = 1.0
+        for i in range(self.args.num_epoch):
+            min_loss = min(min_loss, self.train_loss_list[i])
+        
+        plt.title(f'Loss Curve(KL annealing type:{str(self.args.kl_anneal_type)})')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+
+        self.train_loss_list = [t.detach().cpu().numpy() for t in self.train_loss_list]
+        loss_array = np.array(self.train_loss_list)
+        plt.plot(loss_array, label=f'loss({str(self.args.kl_anneal_type)})', color='b')
+
+        plt.legend()
+        # Save the figure to a file
+        plt.savefig(f'{str(self.args.kl_anneal_type)}/loss_curve_{str(self.args.kl_anneal_type)}.png')
+        # Clear the plot for further use
+        plt.clf()
+        # print(f'Min loss: {min_loss:.5f}')
+
+    def plot_val_PSNR(self):
+        plt.title(f'PSNR of validation')
+        plt.xlabel('Epoch')
+        plt.ylabel('PSNR')
+
+        self.val_PSNR_list = [t.detach().cpu().numpy() for t in self.val_PSNR_list]
+        PSNR_array = np.array(self.val_PSNR_list)
+        plt.plot(PSNR_array, label=f'tfr', color='b')
+
+        plt.legend()
+        plt.savefig(f'{str(self.args.kl_anneal_type)}/PSNR.png')
+        plt.clf()
+        
+    def plot_tfr(self):
+        plt.title(f'Teacher forcing strategy')
+        plt.xlabel('Epoch')
+        plt.ylabel('Teacher forcing ratio')
+
+        tfr_array = np.array(self.tfr_list)
+        plt.plot(tfr_array, label=f'teacher forcing ratio', color='b')
+        plt.legend()
+        plt.savefig(f'{str(self.args.kl_anneal_type)}/teacher_forcing_ratio.png')
+        plt.clf()
 
 
 def main(args):
@@ -362,12 +406,10 @@ def main(args):
         model.training_stage()
 
 
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument('--batch_size',    type=int,    default=2)
-    parser.add_argument('--lr',            type=float,  default=0.0001,     help="initial learning rate")
+    parser.add_argument('--lr',            type=float,  default=0.001,     help="initial learning rate")
     parser.add_argument('--device',        type=str, choices=["cuda", "cpu"], default="cuda")
     parser.add_argument('--optim',         type=str, choices=["Adam", "AdamW"], default="Adam")
     parser.add_argument('--gpu',           type=int, default=1)
@@ -376,7 +418,7 @@ if __name__ == '__main__':
     parser.add_argument('--DR',            type=str, required=True,  help="Your Dataset Path")
     parser.add_argument('--save_root',     type=str, required=True,  help="The path to save your data")
     parser.add_argument('--num_workers',   type=int, default=4)
-    parser.add_argument('--num_epoch',     type=int, default=100,     help="number of total epoch")
+    parser.add_argument('--num_epoch',     type=int, default=5,    help="number of total epoch")
     parser.add_argument('--per_save',      type=int, default=3,      help="Save checkpoint every seted epoch")
     parser.add_argument('--partial',       type=float, default=1.0,  help="Part of the training dataset to be trained")
     parser.add_argument('--train_vi_len',  type=int, default=16,     help="Training video length")
@@ -406,9 +448,7 @@ if __name__ == '__main__':
     parser.add_argument('--kl_anneal_type',     type=str, default='Cyclical',       help="")
     parser.add_argument('--kl_anneal_cycle',    type=int, default=10,               help="")
     parser.add_argument('--kl_anneal_ratio',    type=float, default=1,              help="")
-    
 
-    
 
     args = parser.parse_args()
     

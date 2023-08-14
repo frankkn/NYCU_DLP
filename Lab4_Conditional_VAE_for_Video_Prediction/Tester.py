@@ -59,7 +59,6 @@ def calculate_PSNR(save_root, gen_image, idx):
         
     return sum(PSNR_LIST)/(len(PSNR_LIST)-1)
         
-
 def get_key(fp):
     filename = fp.split('\\')[-1]
     filename = filename.split('.')[0].replace('frame', '')
@@ -147,7 +146,6 @@ class Test_model(VAE_Model):
         print(TA_)
         print(fin_text)
             
-    
     def val_one_step(self, img, label, idx=0):
         img = img.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
         label = label.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
@@ -173,7 +171,6 @@ class Test_model(VAE_Model):
             decoded_frame_list.append(out.cpu())
             label_list.append(label[i].cpu())
             
-        
         generated_frame = stack(decoded_frame_list).permute(1, 0, 2, 3, 4)
         label_frame = stack(label_list).permute(1, 0, 2, 3, 4)
         
