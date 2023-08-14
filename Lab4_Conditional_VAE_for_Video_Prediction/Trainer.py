@@ -180,8 +180,8 @@ class VAE_Model(nn.Module):
         kld = 0
 
         for i in range(1, self.train_vi_len):
-            z = torch.randn(2, self.args.N_dim, self.args.frame_H, self.args.frame_W).cuda()  # 使用 torch.randn 生成隨機張量
-            # z = torch.cuda.FloatTensor(1, self.args.N_dim, self.args.frame_H, self.args.frame_W).normal_() # N(0, I)
+            # z = torch.randn(2, self.args.N_dim, self.args.frame_H, self.args.frame_W).cuda()  # 使用 torch.randn 生成隨機張量
+            z = torch.cuda.FloatTensor(2, self.args.N_dim, self.args.frame_H, self.args.frame_W).normal_() # N(0, I)
             label_feat = self.label_transformation(label[i]) # P2
             human_feat_hat = self.frame_transformation(out) # X1 (prev pred frame)
             ground_truth = self.frame_transformation(img[i]) # X2
@@ -209,14 +209,12 @@ class VAE_Model(nn.Module):
             # label_list.append(label[i].cpu())
 
         beta = self.kl_annealing.get_beta()
-        epsilon = 1e-8
-        loss = mse + kld * beta + epsilon
+        # epsilon = 1e-8
+        loss = mse + kld * beta # + epsilon
         # print(f"loss:{loss}")
         loss.backward()
 
-        nn.utils.clip_grad_norm_(self.parameters(), 1.) # solve loss becomes nan 
-
-        self.optim.step()
+        self.optimizer_step()
 
         # generated_frame = stack(decoded_frame_list).permute(1, 0, 2, 3, 4)
         # label_frame = stack(label_list).permute(1, 0, 2, 3, 4)
@@ -378,7 +376,7 @@ if __name__ == '__main__':
     parser.add_argument('--DR',            type=str, required=True,  help="Your Dataset Path")
     parser.add_argument('--save_root',     type=str, required=True,  help="The path to save your data")
     parser.add_argument('--num_workers',   type=int, default=4)
-    parser.add_argument('--num_epoch',     type=int, default=70,     help="number of total epoch")
+    parser.add_argument('--num_epoch',     type=int, default=100,     help="number of total epoch")
     parser.add_argument('--per_save',      type=int, default=3,      help="Save checkpoint every seted epoch")
     parser.add_argument('--partial',       type=float, default=1.0,  help="Part of the training dataset to be trained")
     parser.add_argument('--train_vi_len',  type=int, default=16,     help="Training video length")

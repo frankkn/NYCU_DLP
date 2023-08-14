@@ -42,7 +42,8 @@ def make_ground_truth_gif(save_root, img_tensor, idx):
 
 def Generate_PSNR(imgs1, imgs2, data_range=1.):
     """PSNR for torch tensor"""
-    mse = nn.functional.mse_loss(imgs1, imgs2) # wrong computation for batch size > 1
+    mse = nn.functional.mse_loss(imgs1, imgs2, reduction='mean')
+    # mse = nn.functional.mse_loss(imgs1, imgs2) # wrong computation for batch size > 1
     psnr = 20 * log10(data_range) - 10 * torch.log10(mse)
     return psnr
 
