@@ -118,7 +118,7 @@ class VAE_Model(nn.Module):
             adapt_TeacherForcing = True if random.random() < self.tfr else False
 
             train_loss = 0
-            
+
             for (img, label) in (pbar := tqdm(train_loader, ncols=120)):
                 img = img.to(self.args.device)
                 label = label.to(self.args.device)
@@ -132,10 +132,11 @@ class VAE_Model(nn.Module):
                 else:
                     self.tqdm_bar('train [TeacherForcing: OFF, {:.1f}], beta: {}'.format(self.tfr, beta), pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0])
             
-            if self.current_epoch % self.args.per_save == 0:
+            if self.current_epoch % self.args.per_save == 0 and self.current_epoch != 0:
                 self.save(os.path.join(self.args.save_root, f"epoch={self.current_epoch}.ckpt"))
 
-            self.train_loss_list.append(train_loss / len(train_loader))
+            # self.train_loss_list.append(train_loss)
+            self.train_loss_list.append(train_loss / len(train_loader)) # 每16張為一組，共23410/16=1463組，每組的平均loss
             self.eval()
             self.current_epoch += 1
             self.scheduler.step()
@@ -173,16 +174,13 @@ class VAE_Model(nn.Module):
         decoded_frame_list = [img[0].cpu()]
         # label_list = []
 
-        # Normal normal
-        last_human_feat = self.frame_transformation(img[0])
-        first_templete = last_human_feat.clone()
         out = img[0]
 
         mse = 0
         kld = 0
 
         for i in range(1, self.train_vi_len):
-            # z = torch.randn(2, self.args.N_dim, self.args.frame_H, self.args.frame_W).cuda()  # 使用 torch.randn 生成隨機張量
+            # z = torch.randn(2, self.args.N_dim, self.args.frame_H, self.args.frame_W).cuda()  # 使用 torch.randn 生成隨機 tensor
             z = torch.cuda.FloatTensor(2, self.args.N_dim, self.args.frame_H, self.args.frame_W).normal_() # N(0, I)
             label_feat = self.label_transformation(label[i]) # P2
             human_feat_hat = self.frame_transformation(out) # X1 (prev pred frame)
@@ -211,17 +209,18 @@ class VAE_Model(nn.Module):
             # label_list.append(label[i].cpu())
 
         beta = self.kl_annealing.get_beta()
-        # epsilon = 1e-8
-        loss = mse + kld * beta # + epsilon
-        # print(f"loss:{loss}")
+        epsilon = 1e-8
+        loss = mse + kld * beta + epsilon
+
+        # print(f"loss of 16 frames:{loss}")
         loss.backward()
 
         self.optimizer_step()
 
-        # generated_frame = stack(decoded_frame_list).permute(1, 0, 2, 3, 4)
-        # label_frame = stack(label_list).permute(1, 0, 2, 3, 4)
+        torch.cuda.empty_cache()
 
-        return loss / (self.train_vi_len-1)
+        return loss # 16張圖片(=一個train video)總共的loss
+        # return loss # / (self.train_vi_len-1) 
 
     def val_one_step(self, img, label):
         img = img.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
@@ -229,8 +228,10 @@ class VAE_Model(nn.Module):
         assert label.shape[0] == 630, "Validation pose seqence should be 630"
         assert img.shape[0] == 630, "Validation video seqence should be 630"
 
+
         decoded_frame_list = [img[0].cpu()] # X1
         label_list = []
+        img_frame_list = []
 
         # Normal normal
         last_human_feat = self.frame_transformation(img[0]) # X1
@@ -253,27 +254,33 @@ class VAE_Model(nn.Module):
             _, mu, logvar = self.Gaussian_Predictor(ground_truth, label_feat) # latent distribution
             kld += kl_criterion(mu, logvar, self.batch_size)
             
-            decoded_frame_list.append(out.cpu()) # X2 - X630
+            decoded_frame_list.append(out.cpu()) # X2_hat - X630_hat
             label_list.append(label[i].cpu()) # P2 - P630
+            img_frame_list.append(img[i].cpu())
 
         beta = self.kl_annealing.get_beta()
         loss = mse + kld * beta
 
-        decoded_frame_list = decoded_frame_list[1:]
+        if self.current_epoch == self.args.num_epoch-1:
+            decoded_frame_list = decoded_frame_list[1:]
 
-        generated_frame = stack(decoded_frame_list).permute(1, 0, 2, 3, 4)
-        label_frame = stack(label_list).permute(1, 0, 2, 3, 4)
+            generated_frame = stack(decoded_frame_list).permute(1, 0, 2, 3, 4)
+            img_frame = stack(img_frame_list).permute(1, 0, 2, 3, 4)
 
-        os.makedirs("./validation_frame", exist_ok=True)
+            os.makedirs("./validation_frame", exist_ok=True)
+            self.make_gif(generated_frame[0], "./validation_frame/pred_seq.gif")
+            self.make_gif(img_frame[0], "./validation_frame/pose.gif")
 
-        self.make_gif(generated_frame[0], "./validation_frame/pred_seq.gif")
-        self.make_gif(label_frame[0], "./validation_frame/pose.gif")
+            # print(len(generated_frame[0])) # 629
+            # print(len(img_frame[0])) # 629
 
-        PSNR = Generate_PSNR(generated_frame, label_frame)
-        self.val_PSNR_list.append(PSNR)
-        # print(f'PSNR:{PSNR}')
+            for i in range(629):
+                PSNR = Generate_PSNR(generated_frame[0][i], img_frame[0][i])
+                self.val_PSNR_list.append(PSNR.item())
 
-        return loss / (self.val_vi_len-1)
+            # print(f'PSNR: {PSNR}')
+
+        return loss # / (self.val_vi_len-1)
                 
     def make_gif(self, images_list, img_name):
         new_list = []
@@ -375,9 +382,9 @@ class VAE_Model(nn.Module):
         plt.xlabel('Epoch')
         plt.ylabel('PSNR')
 
-        self.val_PSNR_list = [t.detach().cpu().numpy() for t in self.val_PSNR_list]
+        # self.val_PSNR_list = [t.detach().cpu().numpy() for t in self.val_PSNR_list]
         PSNR_array = np.array(self.val_PSNR_list)
-        plt.plot(PSNR_array, label=f'tfr', color='b')
+        plt.plot(PSNR_array, label=f'PSNR', color='b')
 
         plt.legend()
         plt.savefig(f'{str(self.args.kl_anneal_type)}/PSNR.png')
@@ -409,7 +416,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument('--batch_size',    type=int,    default=2)
-    parser.add_argument('--lr',            type=float,  default=0.001,     help="initial learning rate")
+    parser.add_argument('--lr',            type=float,  default=0.0001,     help="initial learning rate")
     parser.add_argument('--device',        type=str, choices=["cuda", "cpu"], default="cuda")
     parser.add_argument('--optim',         type=str, choices=["Adam", "AdamW"], default="Adam")
     parser.add_argument('--gpu',           type=int, default=1)
@@ -418,8 +425,8 @@ if __name__ == '__main__':
     parser.add_argument('--DR',            type=str, required=True,  help="Your Dataset Path")
     parser.add_argument('--save_root',     type=str, required=True,  help="The path to save your data")
     parser.add_argument('--num_workers',   type=int, default=4)
-    parser.add_argument('--num_epoch',     type=int, default=5,    help="number of total epoch")
-    parser.add_argument('--per_save',      type=int, default=3,      help="Save checkpoint every seted epoch")
+    parser.add_argument('--num_epoch',     type=int, default=11,    help="number of total epoch")
+    parser.add_argument('--per_save',      type=int, default=5,      help="Save checkpoint every seted epoch")
     parser.add_argument('--partial',       type=float, default=1.0,  help="Part of the training dataset to be trained")
     parser.add_argument('--train_vi_len',  type=int, default=16,     help="Training video length")
     parser.add_argument('--val_vi_len',    type=int, default=630,    help="valdation video length")
@@ -437,7 +444,7 @@ if __name__ == '__main__':
     parser.add_argument('--tfr',           type=float, default=1.0,  help="The initial teacher forcing ratio")
     parser.add_argument('--tfr_sde',       type=int,   default=10,   help="The epoch that teacher forcing ratio start to decay")
     parser.add_argument('--tfr_d_step',    type=float, default=0.1,  help="Decay step that teacher forcing ratio adopted")
-    parser.add_argument('--ckpt_path',     type=str,    default=None,help="The path of your checkpoints")   
+    parser.add_argument('--ckpt_path',     type=str,   default=None, help="The path of your checkpoints")
     
     # Training Strategy
     parser.add_argument('--fast_train',         action='store_true')
