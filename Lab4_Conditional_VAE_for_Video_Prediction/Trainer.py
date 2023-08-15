@@ -180,20 +180,13 @@ class VAE_Model(nn.Module):
         kld = 0
 
         for i in range(1, self.train_vi_len):
-            # z = torch.randn(2, self.args.N_dim, self.args.frame_H, self.args.frame_W).cuda()  # 使用 torch.randn 生成隨機 tensor
             z = torch.cuda.FloatTensor(2, self.args.N_dim, self.args.frame_H, self.args.frame_W).normal_() # N(0, I)
             label_feat = self.label_transformation(label[i]) # P2
             human_feat_hat = self.frame_transformation(out) # X1 (prev pred frame)
             ground_truth = self.frame_transformation(img[i]) # X2
 
-            # z = z.repeat(2, 1, 1, 1)
-            # parm = torch.cat([label_feat, human_feat_hat, z], dim=1)
-
             parm = self.Decoder_Fusion(human_feat_hat, label_feat, z) # (P2, X1, N(0, I))
             out = self.Generator(parm) # X2_hat
-
-            # print("Out shape:", out.shape) # [2, 3, 32, 64]
-            # print("human_feat_hat shape:", human_feat_hat.shape) # [2, 128, 32, 64]
             
             if adapt_TeacherForcing:
                 mse += self.mse_criterion(out, img[i].to(out.device)) # X2_hat vs ground truth
@@ -203,10 +196,7 @@ class VAE_Model(nn.Module):
             _, mu, logvar = self.Gaussian_Predictor(ground_truth, label_feat) # latent distribution
             kld += kl_criterion(mu, logvar, self.batch_size)
 
-            # print(f'mse:{mse} kld:{kld}')
-
             decoded_frame_list.append(out.cpu())
-            # label_list.append(label[i].cpu())
 
         beta = self.kl_annealing.get_beta()
         epsilon = 1e-8
@@ -358,10 +348,6 @@ class VAE_Model(nn.Module):
         self.optim.step()
 
     def plot_loss_curve(self):
-        min_loss = 1.0
-        for i in range(self.args.num_epoch):
-            min_loss = min(min_loss, self.train_loss_list[i])
-        
         plt.title(f'Loss Curve(KL annealing type:{str(self.args.kl_anneal_type)})')
         plt.xlabel('Epoch')
         plt.ylabel('Loss')
