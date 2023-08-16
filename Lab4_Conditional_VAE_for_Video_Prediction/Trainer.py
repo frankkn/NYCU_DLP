@@ -119,24 +119,23 @@ class VAE_Model(nn.Module):
 
             train_loss = 0
 
-            for (img, label) in (pbar := tqdm(train_loader, ncols=120)):
+            for (img, label) in (pbar := tqdm(train_loader, ncols=180)):
                 img = img.to(self.args.device)
                 label = label.to(self.args.device)
                 loss = self.training_one_step(img, label, adapt_TeacherForcing)
 
-                train_loss += loss
+                train_loss += loss.item()
                 
                 beta = self.kl_annealing.get_beta()
                 if adapt_TeacherForcing:
-                    self.tqdm_bar('train [TeacherForcing: ON, {:.1f}], beta: {}'.format(self.tfr, beta), pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0])
+                    self.tqdm_bar('train [TeacherForcing: ON, {:.1f}], beta: {:.4f}'.format(self.tfr, beta), pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0])
                 else:
-                    self.tqdm_bar('train [TeacherForcing: OFF, {:.1f}], beta: {}'.format(self.tfr, beta), pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0])
+                    self.tqdm_bar('train [TeacherForcing: OFF, {:.1f}], beta: {:.4f}'.format(self.tfr, beta), pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0])
             
             if self.current_epoch % self.args.per_save == 0 and self.current_epoch != 0:
                 self.save(os.path.join(self.args.save_root, f"epoch={self.current_epoch}.ckpt"))
 
-            # self.train_loss_list.append(train_loss)
-            self.train_loss_list.append(train_loss / len(train_loader)) # 每16張為一組，共23410/16=1463組，每組的平均loss
+            self.train_loss_list.append(train_loss / len(train_loader)) # average loss per frame 
             self.eval()
             self.current_epoch += 1
             self.scheduler.step()
@@ -151,20 +150,13 @@ class VAE_Model(nn.Module):
     @torch.no_grad()
     def eval(self):
         val_loader = self.val_dataloader()
-        for (img, label) in (pbar := tqdm(val_loader, ncols=120)):
+        for (img, label) in (pbar := tqdm(val_loader, ncols=180)):
             img = img.to(self.args.device)
             label = label.to(self.args.device)
             loss = self.val_one_step(img, label)
             self.tqdm_bar('val', pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0])
     
     def training_one_step(self, img, label, adapt_TeacherForcing):
-        self.frame_transformation.zero_grad() 
-        self.label_transformation.zero_grad() 
-        self.Gaussian_Predictor.zero_grad() 
-        self.Decoder_Fusion.zero_grad() 
-        self.Generator.zero_grad()
-
-        self.optim.zero_grad()
 
         img = img.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
         label = label.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
@@ -172,8 +164,6 @@ class VAE_Model(nn.Module):
         assert img.shape[0] == 16, "Training video seqence should be 16"
 
         decoded_frame_list = [img[0].cpu()]
-        # label_list = []
-
         out = img[0]
 
         mse = 0
@@ -203,14 +193,11 @@ class VAE_Model(nn.Module):
         loss = mse + kld * beta + epsilon
 
         # print(f"loss of 16 frames:{loss}")
+        self.optim.zero_grad()
         loss.backward()
-
         self.optimizer_step()
-
         torch.cuda.empty_cache()
-
-        return loss # 16張圖片(=一個train video)總共的loss
-        # return loss # / (self.train_vi_len-1) 
+        return loss / (self.train_vi_len-1) 
 
     def val_one_step(self, img, label):
         img = img.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
@@ -218,14 +205,10 @@ class VAE_Model(nn.Module):
         assert label.shape[0] == 630, "Validation pose seqence should be 630"
         assert img.shape[0] == 630, "Validation video seqence should be 630"
 
-
         decoded_frame_list = [img[0].cpu()] # X1
         label_list = []
         img_frame_list = []
 
-        # Normal normal
-        last_human_feat = self.frame_transformation(img[0]) # X1
-        first_templete = last_human_feat.clone() 
         out = img[0]
 
         mse = 0
@@ -261,16 +244,12 @@ class VAE_Model(nn.Module):
             self.make_gif(generated_frame[0], "./validation_frame/pred_seq.gif")
             self.make_gif(img_frame[0], "./validation_frame/pose.gif")
 
-            # print(len(generated_frame[0])) # 629
-            # print(len(img_frame[0])) # 629
-
             for i in range(629):
                 PSNR = Generate_PSNR(generated_frame[0][i], img_frame[0][i])
                 self.val_PSNR_list.append(PSNR.item())
-
-            # print(f'PSNR: {PSNR}')
-
-        return loss # / (self.val_vi_len-1)
+            
+        torch.cuda.empty_cache()
+        return loss / (self.val_vi_len-1)
                 
     def make_gif(self, images_list, img_name):
         new_list = []
@@ -352,16 +331,14 @@ class VAE_Model(nn.Module):
         plt.xlabel('Epoch')
         plt.ylabel('Loss')
 
-        self.train_loss_list = [t.detach().cpu().numpy() for t in self.train_loss_list]
+        # self.train_loss_list = [t.detach().cpu().numpy() for t in self.train_loss_list]
         loss_array = np.array(self.train_loss_list)
-        plt.plot(loss_array, label=f'loss({str(self.args.kl_anneal_type)})', color='b')
+        plt.plot(loss_array, label=f'average loss per frame', color='r')
 
         plt.legend()
-        # Save the figure to a file
         plt.savefig(f'{str(self.args.kl_anneal_type)}/loss_curve_{str(self.args.kl_anneal_type)}.png')
-        # Clear the plot for further use
         plt.clf()
-        # print(f'Min loss: {min_loss:.5f}')
+
 
     def plot_val_PSNR(self):
         plt.title(f'PSNR of validation')
@@ -370,7 +347,7 @@ class VAE_Model(nn.Module):
 
         # self.val_PSNR_list = [t.detach().cpu().numpy() for t in self.val_PSNR_list]
         PSNR_array = np.array(self.val_PSNR_list)
-        plt.plot(PSNR_array, label=f'PSNR', color='b')
+        plt.plot(PSNR_array, label=f'PSNR', color='r')
 
         plt.legend()
         plt.savefig(f'{str(self.args.kl_anneal_type)}/PSNR.png')
@@ -382,7 +359,7 @@ class VAE_Model(nn.Module):
         plt.ylabel('Teacher forcing ratio')
 
         tfr_array = np.array(self.tfr_list)
-        plt.plot(tfr_array, label=f'teacher forcing ratio', color='b')
+        plt.plot(tfr_array, label=f'teacher forcing ratio', color='r')
         plt.legend()
         plt.savefig(f'{str(self.args.kl_anneal_type)}/teacher_forcing_ratio.png')
         plt.clf()
@@ -410,8 +387,8 @@ if __name__ == '__main__':
     parser.add_argument('--store_visualization',      action='store_true', help="If you want to see the result while training")
     parser.add_argument('--DR',            type=str, required=True,  help="Your Dataset Path")
     parser.add_argument('--save_root',     type=str, required=True,  help="The path to save your data")
-    parser.add_argument('--num_workers',   type=int, default=4)
-    parser.add_argument('--num_epoch',     type=int, default=11,    help="number of total epoch")
+    parser.add_argument('--num_workers',   type=int, default=10)
+    parser.add_argument('--num_epoch',     type=int, default=6,    help="number of total epoch")
     parser.add_argument('--per_save',      type=int, default=5,      help="Save checkpoint every seted epoch")
     parser.add_argument('--partial',       type=float, default=1.0,  help="Part of the training dataset to be trained")
     parser.add_argument('--train_vi_len',  type=int, default=16,     help="Training video length")
