@@ -14,3 +14,6 @@ Implement simple EEG classification models which are EEGNet, DeepConvNet with BC
 
 ## Lab3: Leukemia classification
 Implement ResNet18/ResNet50/ResNet152 architecture to analyze accurate lymphoblastic leukemia (急性淋巴性白血病).
+
+## Lab4: Conditional VAE for Video Prediction
+Implement conditional video prediction in a VAE-based model.

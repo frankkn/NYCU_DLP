@@ -139,7 +139,7 @@ class VAE_Model(nn.Module):
             self.eval()
             self.current_epoch += 1
             self.scheduler.step()
-            self.tfr_list.append(self.args.tfr)
+            self.tfr_list.append(self.tfr)
             self.teacher_forcing_ratio_update()
             self.kl_annealing.update()
 
@@ -170,7 +170,7 @@ class VAE_Model(nn.Module):
         kld = 0
 
         for i in range(1, self.train_vi_len):
-            z = torch.cuda.FloatTensor(2, self.args.N_dim, self.args.frame_H, self.args.frame_W).normal_() # N(0, I)
+            z = torch.cuda.FloatTensor(self.batch_size, self.args.N_dim, self.args.frame_H, self.args.frame_W).normal_() # N(0, I)
             label_feat = self.label_transformation(label[i]) # P2
             human_feat_hat = self.frame_transformation(out) # X1 (prev pred frame)
             ground_truth = self.frame_transformation(img[i]) # X2
@@ -241,8 +241,8 @@ class VAE_Model(nn.Module):
             img_frame = stack(img_frame_list).permute(1, 0, 2, 3, 4)
 
             os.makedirs("./validation_frame", exist_ok=True)
-            self.make_gif(generated_frame[0], "./validation_frame/pred_seq.gif")
-            self.make_gif(img_frame[0], "./validation_frame/pose.gif")
+            self.make_gif(generated_frame[0], f"./validation_frame/{str(self.args.kl_anneal_type)}/pred_seq.gif")
+            self.make_gif(img_frame[0], f"./validation_frame/{str(self.args.kl_anneal_type)}/pose.gif")
 
             for i in range(629):
                 PSNR = Generate_PSNR(generated_frame[0][i], img_frame[0][i])
@@ -336,21 +336,22 @@ class VAE_Model(nn.Module):
         plt.plot(loss_array, label=f'average loss per frame', color='r')
 
         plt.legend()
-        plt.savefig(f'{str(self.args.kl_anneal_type)}/loss_curve_{str(self.args.kl_anneal_type)}.png')
+        plt.savefig(f'./figures/{str(self.args.kl_anneal_type)}/loss_curve_{str(self.args.kl_anneal_type)}.png')
         plt.clf()
 
 
     def plot_val_PSNR(self):
-        plt.title(f'PSNR of validation')
-        plt.xlabel('Epoch')
+        plt.title(f'Per frame Quality(PSNR)')
+        plt.xlabel('Frame index')
         plt.ylabel('PSNR')
 
         # self.val_PSNR_list = [t.detach().cpu().numpy() for t in self.val_PSNR_list]
         PSNR_array = np.array(self.val_PSNR_list)
-        plt.plot(PSNR_array, label=f'PSNR', color='r')
+        mean_value = np.mean(PSNR_array)
+        plt.plot(PSNR_array, label=f'Avg_PSNR:{mean_value}', color='r')
 
         plt.legend()
-        plt.savefig(f'{str(self.args.kl_anneal_type)}/PSNR.png')
+        plt.savefig(f'./figures/{str(self.args.kl_anneal_type)}/PSNR.png')
         plt.clf()
         
     def plot_tfr(self):
@@ -361,7 +362,7 @@ class VAE_Model(nn.Module):
         tfr_array = np.array(self.tfr_list)
         plt.plot(tfr_array, label=f'teacher forcing ratio', color='r')
         plt.legend()
-        plt.savefig(f'{str(self.args.kl_anneal_type)}/teacher_forcing_ratio.png')
+        plt.savefig(f'./figures/{str(self.args.kl_anneal_type)}/teacher_forcing_ratio.png')
         plt.clf()
 
 
@@ -378,7 +379,7 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(add_help=True)
-    parser.add_argument('--batch_size',    type=int,    default=2)
+    parser.add_argument('--batch_size',    type=int,    default=4)
     parser.add_argument('--lr',            type=float,  default=0.0001,     help="initial learning rate")
     parser.add_argument('--device',        type=str, choices=["cuda", "cpu"], default="cuda")
     parser.add_argument('--optim',         type=str, choices=["Adam", "AdamW"], default="Adam")
@@ -387,9 +388,9 @@ if __name__ == '__main__':
     parser.add_argument('--store_visualization',      action='store_true', help="If you want to see the result while training")
     parser.add_argument('--DR',            type=str, required=True,  help="Your Dataset Path")
     parser.add_argument('--save_root',     type=str, required=True,  help="The path to save your data")
-    parser.add_argument('--num_workers',   type=int, default=10)
-    parser.add_argument('--num_epoch',     type=int, default=6,    help="number of total epoch")
-    parser.add_argument('--per_save',      type=int, default=5,      help="Save checkpoint every seted epoch")
+    parser.add_argument('--num_workers',   type=int, default=14)
+    parser.add_argument('--num_epoch',     type=int, default=61,    help="number of total epoch")
+    parser.add_argument('--per_save',      type=int, default=3,      help="Save checkpoint every seted epoch")
     parser.add_argument('--partial',       type=float, default=1.0,  help="Part of the training dataset to be trained")
     parser.add_argument('--train_vi_len',  type=int, default=16,     help="Training video length")
     parser.add_argument('--val_vi_len',    type=int, default=630,    help="valdation video length")
@@ -412,7 +413,7 @@ if __name__ == '__main__':
     # Training Strategy
     parser.add_argument('--fast_train',         action='store_true')
     parser.add_argument('--fast_partial',       type=float, default=0.4,    help="Use part of the training data to fasten the convergence")
-    parser.add_argument('--fast_train_epoch',   type=int, default=5,        help="Number of epoch to use fast train mode")
+    parser.add_argument('--fast_train_epoch',   type=int, default=10,        help="Number of epoch to use fast train mode")
     
     # Kl annealing stratedy arguments
     parser.add_argument('--kl_anneal_type',     type=str, default='Cyclical',       help="")

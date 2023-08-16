@@ -3,4 +3,6 @@ Demo_Test/
 __pycache__
 .ipynb_checkpoints
 checkpoint/*.ckpt
-checkpoint/special_ckpt
+checkpoint/Cyclical
+checkpoint/Monotonic
+checkpoint/None
