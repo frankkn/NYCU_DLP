@@ -5,3 +5,9 @@ Highly correlated to the ICCV paper below:
 2. “Stochastic Video Generation with a Learned Prior” (makes the video prediction in the VAE-based model)
 
 ## Demo questions:
+1. What is the KL divergence ?
+2. How do you calculate your loss ?
+3. What is the teacher forcing strategy ?
+4. Explain three paramters of Decoder fusion.
+5. Which one is the generative model? VAE, AE, decoder fusion. (All)
+6. Explain the differences between AE and VAE.
