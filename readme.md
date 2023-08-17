@@ -4,7 +4,7 @@ Course labs for 535500/535501 of NYCU.
 (2023 Summer NYCU Deep learning and pracice)
 
 ## Notice 
-If you want to run each code, please open .ipynb file in each Lab folder.
+If you want to run each code, please open .ipynb or .py file in each Lab folder.
 
 ## Lab1: Back propagation
 Implement simple neural networks with forwarding pass and backpropagation using two hidden layers.
