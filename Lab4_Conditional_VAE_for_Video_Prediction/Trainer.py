@@ -348,7 +348,7 @@ class VAE_Model(nn.Module):
         # self.val_PSNR_list = [t.detach().cpu().numpy() for t in self.val_PSNR_list]
         PSNR_array = np.array(self.val_PSNR_list)
         mean_value = np.mean(PSNR_array)
-        plt.plot(PSNR_array, label=f'Avg_PSNR:{mean_value}', color='r')
+        plt.plot(PSNR_array, label=f'Avg_PSNR:{mean_value:.2f}', color='r')
 
         plt.legend()
         plt.savefig(f'./figures/{str(self.args.kl_anneal_type)}/PSNR.png')
@@ -416,7 +416,7 @@ if __name__ == '__main__':
     parser.add_argument('--fast_train_epoch',   type=int, default=10,        help="Number of epoch to use fast train mode")
     
     # Kl annealing stratedy arguments
-    parser.add_argument('--kl_anneal_type',     type=str, default='Cyclical',       help="")
+    parser.add_argument('--kl_anneal_type',     type=str, default='None',       help="")
     parser.add_argument('--kl_anneal_cycle',    type=int, default=10,               help="")
     parser.add_argument('--kl_anneal_ratio',    type=float, default=1,              help="")
 

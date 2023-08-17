@@ -1,0 +1,15 @@
+Train:
+
+python Trainer.py --DR LAB4_Dataset --save_root checkpoint/Cyclical/ckpt --fast_train
+python Trainer.py --DR LAB4_Dataset --save_root checkpoint/Monotonic/ckpt --fast_train
+python Trainer.py --DR LAB4_Dataset --save_root checkpoint/None/ckpt --fast_train
+
+Test:
+
+python Tester.py --DR LAB4_Dataset --save_root checkpoint/Cyclical/seq --ckpt_path checkpoint/Cyclical/ckpt/epoch=3.ckpt
+python Tester.py --DR LAB4_Dataset --save_root checkpoint/Monotonic/seq --ckpt_path checkpoint/Monotonic/ckpt/epoch=3.ckpt
+python Tester.py --DR LAB4_Dataset --save_root checkpoint/None/seq --ckpt_path checkpoint/None/ckpt/epoch=3.ckpt
+
+Demo:
+
+python Tester.py --DR LAB4_Dataset --save_root checkpoint/demo --ckpt_path checkpoint/special_ckpt/special.ckpt
