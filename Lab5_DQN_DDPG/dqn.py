@@ -38,12 +38,20 @@ class Net(nn.Module):
     def __init__(self, state_dim=8, action_dim=4, hidden_dim=32):
         super().__init__()
         ## TODO ##
-        raise NotImplementedError
+        self.layers = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.ReLU(inplace=True),
+
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(inplace=True),
+
+            nn.Linear(hidden_dim, action_dim),
+        )
 
     def forward(self, x):
         ## TODO ##
-        raise NotImplementedError
-
+        out = self.layers(x)
+        return out
 
 class DQN:
     def __init__(self, args):
@@ -52,8 +60,7 @@ class DQN:
         # initialize target network
         self._target_net.load_state_dict(self._behavior_net.state_dict())
         ## TODO ##
-        # self._optimizer = ?
-        raise NotImplementedError
+        self._optimizer = torch.optim.Adam(self._behavior_net.parameters(), lr=args.lr)
         # memory
         self._memory = ReplayMemory(capacity=args.capacity)
 
@@ -67,7 +74,13 @@ class DQN:
     def select_action(self, state, epsilon, action_space):
         '''epsilon-greedy based on behavior network'''
          ## TODO ##
-        raise NotImplementedError
+        if random.random() < epsilon:
+            return action_space.sample()
+        
+        with torch.no_grad():
+            actions = self._behavior_net(state)
+            _, best_action_index = torch.max(actions, 1)
+            return best_action_index.item() # transform tensor into scalar
 
     def append(self, state, action, reward, next_state, done):
         self._memory.append(state, [action], [reward / 10], next_state,
@@ -91,7 +104,24 @@ class DQN:
         #    q_target = ?
         # criterion = ?
         # loss = criterion(q_value, q_target)
-        raise NotImplementedError
+
+        # q_value = torch.tensor([[0.5, 0.3, 0.8, 0.6],
+        #                         [0.1, 0.9, 0.4, 0.7]])
+        # action = torch.tensor([[1],
+        #                        [2]])
+        # tensor([[0.3],
+        #         [0.4]])
+
+        q_value = self._behavior_net(state) # 用model對當前state，得到預測的Q值:(batch_size, num_actions)
+        q_value = torch.gather(input=q_value, dim=1, index=action.long()) # 在預測的Q值tensor中選取相應的動作索引的元素，以得到預測的Q值。
+        with torch.no_grad():
+            q_next = self._target_net(next_state)
+            q_next, _ = torch.max(q_next, dim=1)
+            q_next = q_next.reshape(-1, 1) # 轉換成(batch_size, 1)
+            q_target = reward + gamma * q_next * (1 - done)
+        criterion = nn.MSELoss()
+        loss = criterion(q_value, q_target)
+
         # optimize
         self._optimizer.zero_grad()
         loss.backward()
@@ -101,7 +131,7 @@ class DQN:
     def _update_target_network(self):
         '''update target network by copying from behavior network'''
         ## TODO ##
-        raise NotImplementedError
+        self._target_net.load_state_dict(self._behavior_net.state_dict())
 
     def save(self, model_path, checkpoint=False):
         if checkpoint:
@@ -140,7 +170,7 @@ def train(args, env, agent, writer):
                 action = agent.select_action(state, epsilon, action_space)
                 epsilon = max(epsilon * args.eps_decay, args.eps_min)
             # execute action
-            next_state, reward, done, _ = env.step(action)
+            next_state, reward, done, _, _ = env.step(action)
             # store transition
             agent.append(state, action, reward, next_state, done)
             if total_steps >= args.warmup:
@@ -178,7 +208,22 @@ def test(args, env, agent, writer):
         #     if done:
         #         writer.add_scalar('Test/Episode Reward', total_reward, n_episode)
         #         ...
-        raise NotImplementedError
+        with torch.no_grad():
+            done = 0
+            while not done:
+                # select action
+                action = agent.select_action(state, epsilon, action_space)
+                # execute action
+                next_state, reward, done, _ = env.step(action)
+                state = next_state
+                total_reward += reward
+                if done:
+                    writer.add_scalar('Test/Episode Reward', total_reward, n_episode)
+                    rewards.append(total_reward)
+                    break
+        
+        print(total_reward)
+
     print('Average Reward', np.mean(rewards))
     env.close()
 
@@ -203,7 +248,7 @@ def main():
     # test
     parser.add_argument('--test_only', action='store_true')
     parser.add_argument('--render', action='store_true')
-    parser.add_argument('--seed', default=20200519, type=int)
+    parser.add_argument('--seed', default=20230819, type=int)
     parser.add_argument('--test_epsilon', default=.001, type=float)
     args = parser.parse_args()
 

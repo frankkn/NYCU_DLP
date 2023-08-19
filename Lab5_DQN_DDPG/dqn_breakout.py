@@ -18,7 +18,7 @@ from atari_wrappers import wrap_deepmind, make_atari
 class ReplayMemory(object):
     ## TODO ##
     def __init__(self):
-        
+        pass        
 
 
     def push(self, state, action, reward, done):
