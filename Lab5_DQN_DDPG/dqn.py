@@ -12,7 +12,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter # tensorboard --logdir=log/dqn
 
 
 
@@ -37,9 +37,8 @@ class ReplayMemory:
 
 
 class Net(nn.Module):
-    def __init__(self, state_dim=8, action_dim=4, hidden_dim=32):
+    def __init__(self, state_dim=8, action_dim=4, hidden_dim=64):
         super().__init__()
-        ## TODO ##
         self.layers = nn.Sequential(
             nn.Linear(state_dim, hidden_dim),
             nn.ReLU(inplace=True),
@@ -51,9 +50,9 @@ class Net(nn.Module):
         )
 
     def forward(self, x):
-        ## TODO ##
         out = self.layers(x)
         return out
+
 
 class DQN:
     def __init__(self, args):
@@ -61,7 +60,6 @@ class DQN:
         self._target_net = Net().to(args.device)
         # initialize target network
         self._target_net.load_state_dict(self._behavior_net.state_dict()) # fixed Q value from target network
-        ## TODO ##
         self._optimizer = optim.Adam(self._behavior_net.parameters(), lr=args.lr)
         # memory
         self._memory = ReplayMemory(capacity=args.capacity)
@@ -75,15 +73,19 @@ class DQN:
 
     def select_action(self, state, epsilon, action_space):
         '''epsilon-greedy based on behavior network'''
-         ## TODO ##
         if random.random() < epsilon:
             return action_space.sample()
         
+        # with torch.no_grad():
+        #     state_tensor = torch.from_numpy(state).to(self.device)
+        #     q_values = self._behavior_net(state_tensor)
+        #     best_action_index = q_values.argmax().item() # change tensor into scalar
+        #     return best_action_index
+        
         with torch.no_grad():
-            state_tensor = torch.from_numpy(state).to(self.device)
-            q_values = self._behavior_net(state_tensor)
-            best_action_index = q_values.argmax().item() # change tensor into scalar
-            return best_action_index
+            q_values = self._behavior_net(torch.from_numpy(state).view(1, -1).to(self.device))
+            _, best_action_index = q_values.max(dim=1)
+        return best_action_index.item()
 
     def append(self, state, action, reward, next_state, done):
         self._memory.append(state, [action], [reward / 10], next_state,
@@ -133,7 +135,6 @@ class DQN:
 
     def _update_target_network(self):
         '''update target network by copying from behavior network'''
-        ## TODO ##
         self._target_net.load_state_dict(self._behavior_net.state_dict())
 
     def save(self, model_path, checkpoint=False):
@@ -165,8 +166,10 @@ def train(args, env, agent, writer):
     for episode in range(args.episode):
         total_reward = 0
         state = env.reset()
-
-        epsilon = max(epsilon * args.eps_decay, args.eps_min)
+        if episode % 100 == 0 and episode != 0:
+            model_path = f'model/dqn/dqn_episode={str(episode)}.pth'
+            agent.save(model_path, checkpoint=True)
+            test(args, env, agent, writer)
 
         for t in itertools.count(start=1):
             if t == 1:
@@ -211,6 +214,7 @@ def test(args, env, agent, writer):
     for n_episode, seed in enumerate(seeds):
         total_reward = 0
         # env.seed(seed)
+        np.random.seed(seed)
         state = env.reset()
         for t in itertools.count(start=1):
             if t == 1:
@@ -237,7 +241,7 @@ def main():
     parser.add_argument('--logdir', default='log/dqn')
     # train
     parser.add_argument('--warmup', default=10000, type=int)
-    parser.add_argument('--episode', default=100, type=int)
+    parser.add_argument('--episode', default=10000, type=int)
     parser.add_argument('--capacity', default=10000, type=int)
     parser.add_argument('--batch_size', default=128, type=int)
     parser.add_argument('--lr', default=.0005, type=float)
@@ -257,7 +261,8 @@ def main():
     env = gym.make('LunarLander-v2')
     agent = DQN(args)
     writer = SummaryWriter(args.logdir)
-    model_path = f'dqn_episode={args.episode}.pth'
+    model_path = f'model/dqn/dqn_episode={args.episode}.pth'
+    # model_path = f'model/dqn/dqn_episode=300.pth'
     if not args.test_only:
         train(args, env, agent, writer)
         agent.save(model_path, checkpoint=True)
