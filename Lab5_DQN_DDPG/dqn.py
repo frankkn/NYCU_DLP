@@ -11,7 +11,9 @@ import gym
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
+
 
 
 class ReplayMemory:
@@ -29,7 +31,7 @@ class ReplayMemory:
 
     def sample(self, batch_size, device):
         '''sample a batch of transition tensors'''
-        transitions = random.sample(self.buffer, batch_size)
+        transitions = random.sample(self.buffer, batch_size) # Sample {$batch_size} experiences from buffer
         return (torch.tensor(x, dtype=torch.float, device=device)
                 for x in zip(*transitions))
 
@@ -58,9 +60,9 @@ class DQN:
         self._behavior_net = Net().to(args.device)
         self._target_net = Net().to(args.device)
         # initialize target network
-        self._target_net.load_state_dict(self._behavior_net.state_dict())
+        self._target_net.load_state_dict(self._behavior_net.state_dict()) # fixed Q value from target network
         ## TODO ##
-        self._optimizer = torch.optim.Adam(self._behavior_net.parameters(), lr=args.lr)
+        self._optimizer = optim.Adam(self._behavior_net.parameters(), lr=args.lr)
         # memory
         self._memory = ReplayMemory(capacity=args.capacity)
 
@@ -68,8 +70,8 @@ class DQN:
         self.device = args.device
         self.batch_size = args.batch_size
         self.gamma = args.gamma
-        self.freq = args.freq
-        self.target_freq = args.target_freq
+        self.freq = args.freq # update behavior network
+        self.target_freq = args.target_freq # update target network
 
     def select_action(self, state, epsilon, action_space):
         '''epsilon-greedy based on behavior network'''
@@ -78,9 +80,10 @@ class DQN:
             return action_space.sample()
         
         with torch.no_grad():
-            actions = self._behavior_net(state)
-            _, best_action_index = torch.max(actions, 1)
-            return best_action_index.item() # transform tensor into scalar
+            state_tensor = torch.from_numpy(state).to(self.device)
+            q_values = self._behavior_net(state_tensor)
+            best_action_index = q_values.argmax().item() # change tensor into scalar
+            return best_action_index
 
     def append(self, state, action, reward, next_state, done):
         self._memory.append(state, [action], [reward / 10], next_state,
@@ -94,7 +97,7 @@ class DQN:
 
     def _update_behavior_network(self, gamma):
         # sample a minibatch of transitions
-        state, action, reward, next_state, done = self._memory.sample(
+        (state, action, reward, next_state, done) = self._memory.sample(
             self.batch_size, self.device)
 
         ## TODO ##
@@ -162,17 +165,26 @@ def train(args, env, agent, writer):
     for episode in range(args.episode):
         total_reward = 0
         state = env.reset()
+
+        epsilon = max(epsilon * args.eps_decay, args.eps_min)
+
         for t in itertools.count(start=1):
+            if t == 1:
+                state = state[0]
+
             # select action
             if total_steps < args.warmup:
                 action = action_space.sample()
             else:
                 action = agent.select_action(state, epsilon, action_space)
                 epsilon = max(epsilon * args.eps_decay, args.eps_min)
+
             # execute action
             next_state, reward, done, _, _ = env.step(action)
+
             # store transition
             agent.append(state, action, reward, next_state, done)
+
             if total_steps >= args.warmup:
                 agent.update(total_steps)
 
@@ -181,14 +193,11 @@ def train(args, env, agent, writer):
             total_steps += 1
             if done:
                 ewma_reward = 0.05 * total_reward + (1 - 0.05) * ewma_reward
-                writer.add_scalar('Train/Episode Reward', total_reward,
-                                  total_steps)
-                writer.add_scalar('Train/Ewma Reward', ewma_reward,
-                                  total_steps)
+                writer.add_scalar('Train/Episode Reward', total_reward, total_steps)
+                writer.add_scalar('Train/Ewma Reward', ewma_reward, total_steps)
                 print(
                     'Step: {}\tEpisode: {}\tLength: {:3d}\tTotal reward: {:.2f}\tEwma reward: {:.2f}\tEpsilon: {:.3f}'
-                    .format(total_steps, episode, t, total_reward, ewma_reward,
-                            epsilon))
+                    .format(total_steps, episode, t, total_reward, ewma_reward, epsilon))
                 break
     env.close()
 
@@ -201,28 +210,20 @@ def test(args, env, agent, writer):
     rewards = []
     for n_episode, seed in enumerate(seeds):
         total_reward = 0
-        env.seed(seed)
+        # env.seed(seed)
         state = env.reset()
-        ## TODO ##
-        # ...
-        #     if done:
-        #         writer.add_scalar('Test/Episode Reward', total_reward, n_episode)
-        #         ...
-        with torch.no_grad():
-            done = 0
-            while not done:
-                # select action
-                action = agent.select_action(state, epsilon, action_space)
-                # execute action
-                next_state, reward, done, _ = env.step(action)
-                state = next_state
-                total_reward += reward
-                if done:
-                    writer.add_scalar('Test/Episode Reward', total_reward, n_episode)
-                    rewards.append(total_reward)
-                    break
-        
-        print(total_reward)
+        for t in itertools.count(start=1):
+            if t == 1:
+                state = state[0]
+            action = agent.select_action(state, epsilon, action_space)
+            next_state, reward, done, _, _ = env.step(action)
+            state = next_state
+            total_reward += reward
+            if done:
+                writer.add_scalar('Test/Episode Reward', total_reward, n_episode)
+                print(f'Step : {t}, total reward : {total_reward}')
+                rewards.append(total_reward)
+                break
 
     print('Average Reward', np.mean(rewards))
     env.close()
@@ -236,7 +237,7 @@ def main():
     parser.add_argument('--logdir', default='log/dqn')
     # train
     parser.add_argument('--warmup', default=10000, type=int)
-    parser.add_argument('--episode', default=1200, type=int)
+    parser.add_argument('--episode', default=100, type=int)
     parser.add_argument('--capacity', default=10000, type=int)
     parser.add_argument('--batch_size', default=128, type=int)
     parser.add_argument('--lr', default=.0005, type=float)
@@ -248,7 +249,7 @@ def main():
     # test
     parser.add_argument('--test_only', action='store_true')
     parser.add_argument('--render', action='store_true')
-    parser.add_argument('--seed', default=20230819, type=int)
+    parser.add_argument('--seed', default=20230820, type=int)
     parser.add_argument('--test_epsilon', default=.001, type=float)
     args = parser.parse_args()
 
@@ -256,10 +257,13 @@ def main():
     env = gym.make('LunarLander-v2')
     agent = DQN(args)
     writer = SummaryWriter(args.logdir)
+    model_path = f'dqn_episode={args.episode}.pth'
     if not args.test_only:
         train(args, env, agent, writer)
-        agent.save(args.model)
-    agent.load(args.model)
+        agent.save(model_path, checkpoint=True)
+        # agent.save(args.model)
+    # agent.load(args.model)
+    agent.load(model_path)
     test(args, env, agent, writer)
 
 
