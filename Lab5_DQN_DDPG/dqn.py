@@ -214,8 +214,7 @@ def test(args, env, agent, writer):
     for n_episode, seed in enumerate(seeds):
         total_reward = 0
         # env.seed(seed)
-        np.random.seed(seed)
-        state = env.reset()
+        state = env.reset(seed=seed)
         for t in itertools.count(start=1):
             if t == 1:
                 state = state[0]
@@ -241,7 +240,7 @@ def main():
     parser.add_argument('--logdir', default='log/dqn')
     # train
     parser.add_argument('--warmup', default=10000, type=int)
-    parser.add_argument('--episode', default=10000, type=int)
+    parser.add_argument('--episode', default=1200, type=int)
     parser.add_argument('--capacity', default=10000, type=int)
     parser.add_argument('--batch_size', default=128, type=int)
     parser.add_argument('--lr', default=.0005, type=float)
@@ -261,16 +260,14 @@ def main():
     env = gym.make('LunarLander-v2')
     agent = DQN(args)
     writer = SummaryWriter(args.logdir)
-    model_path = f'model/dqn/dqn_episode={args.episode}.pth'
-    # model_path = f'model/dqn/dqn_episode=300.pth'
     if not args.test_only:
         train(args, env, agent, writer)
-        agent.save(model_path, checkpoint=True)
-        # agent.save(args.model)
-    # agent.load(args.model)
-    agent.load(model_path)
-    test(args, env, agent, writer)
+        new_model_path = f"model/dqn/dqn_ep={args.episode}.pth"
+        agent.save(new_model_path) # new model
 
+    trained_model_path = "model/dqn/dqn_ep=500.pth"
+    agent.load(trained_model_path) # trained model 
+    test(args, env, agent, writer)
 
 if __name__ == '__main__':
     main()

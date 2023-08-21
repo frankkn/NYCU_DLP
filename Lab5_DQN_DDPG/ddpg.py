@@ -268,8 +268,7 @@ def test(args, env, agent, writer):
     for n_episode, seed in enumerate(seeds):
         total_reward = 0
         # env.seed(seed)
-        np.random.seed(seed)
-        state = env.reset()
+        state = env.reset(seed=seed)
         for t in itertools.count(start=1):
             if t == 1:
                 state = state[0]
