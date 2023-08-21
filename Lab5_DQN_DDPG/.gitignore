@@ -1,3 +1,3 @@
 log
 __pycache__
-model/ddpg
+model/dqn_breakout

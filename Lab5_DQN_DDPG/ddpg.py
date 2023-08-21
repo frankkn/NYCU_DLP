@@ -48,6 +48,7 @@ class ReplayMemory:
 class ActorNet(nn.Module):
     def __init__(self, state_dim=8, action_dim=2, hidden_dim=(400, 300)):
         super().__init__()
+        ## TODO ##
         self.layers = nn.Sequential(
             nn.Linear(state_dim, hidden_dim[0]),
             nn.ReLU(inplace=True),
@@ -60,6 +61,7 @@ class ActorNet(nn.Module):
         )
 
     def forward(self, x):
+        ## TODO ##
         out = self.layers(x)
         return out
 
@@ -94,7 +96,7 @@ class DDPG:
         # initialize target network
         self._target_actor_net.load_state_dict(self._actor_net.state_dict())
         self._target_critic_net.load_state_dict(self._critic_net.state_dict())
-
+        ## TODO ##
         self._actor_opt = optim.Adam(self._actor_net.parameters(), lr=args.lra)
         self._critic_opt = optim.Adam(self._critic_net.parameters(),lr=args.lrc)
 
@@ -111,6 +113,7 @@ class DDPG:
 
     def select_action(self, state, noise=True):
         '''based on the behavior (actor) network and exploration noise'''
+        ## TODO ##
         with torch.no_grad():
             if noise:
                 # view(1, -1) is used to reshape the tensor to have a batch size of 1 (single sample) 
@@ -125,8 +128,7 @@ class DDPG:
         return action.cpu().numpy().squeeze() 
     
     def append(self, state, action, reward, next_state, done):
-        self._memory.append(state, action, [reward / 100], next_state,
-                            [int(done)])
+        self._memory.append(state, action, [reward / 100], next_state, [int(done)])
 
     def update(self):
         # update the behavior networks
@@ -147,7 +149,7 @@ class DDPG:
 
         ## update critic ##
         # critic loss
-
+        ## TODO ##
         state = state.to(torch.float32)
         action = action.to(torch.float32)
         next_state = next_state.to(torch.float32)
@@ -170,7 +172,7 @@ class DDPG:
 
         ## update actor ##
         # actor loss
-
+        ## TODO ##
         action = self._actor_net(state)
         actor_loss = -self._critic_net(state, action).mean()
 
@@ -184,6 +186,7 @@ class DDPG:
     def _update_target_network(target_net, net, tau):
         '''update target network by _soft_ copying from behavior network'''
         for target, behavior in zip(target_net.parameters(), net.parameters()):
+            ## TODO ##
             target.data.copy_((1-tau) * target.data + tau * behavior.data)
 
     def save(self, model_path, checkpoint=False):
@@ -269,10 +272,14 @@ def test(args, env, agent, writer):
         total_reward = 0
         # env.seed(seed)
         state = env.reset(seed=seed)
+        ## TODO ##
+        # ...
+        #     if done:
+        #         writer.add_scalar('Test/Episode Reward', total_reward, n_episode)
+        #         ...
         for t in itertools.count(start=1):
             if t == 1:
                 state = state[0]
-
             # env.render()
             action = agent.select_action(state, noise=False)
             next_state, reward, done, _, _ = env.step(action)
@@ -296,8 +303,8 @@ def main():
     parser.add_argument('--logdir', default='log/ddpg')
     # train
     parser.add_argument('--warmup', default=10000, type=int)
-    parser.add_argument('--episode', default=1200, type=int)
-    parser.add_argument('--batch_size', default=64, type=int)
+    parser.add_argument('--episode', default=2001, type=int)
+    parser.add_argument('--batch_size', default=128, type=int)
     parser.add_argument('--capacity', default=500000, type=int)
     parser.add_argument('--lra', default=1e-3, type=float)
     parser.add_argument('--lrc', default=1e-3, type=float)
@@ -313,7 +320,8 @@ def main():
     env = gym.make('LunarLanderContinuous-v2')
     agent = DDPG(args)
     writer = SummaryWriter(args.logdir)
-    model_path = f'ddpg_episode={args.episode}.pth'
+    # model_path = f'model/ddpg/ddpg_episode={args.episode}.pth'
+    model_path = "model/ddpg/ddpg_episode=1100.pth"
     if not args.test_only:
         train(args, env, agent, writer)
         agent.save(model_path, checkpoint=True)

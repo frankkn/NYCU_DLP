@@ -17,17 +17,18 @@ from atari_wrappers import wrap_deepmind, make_atari
 
 class ReplayMemory(object):
     ## TODO ##
-    def __init__(self):
-        pass        
+    def __init__(self, capacity):
+        self.buffer = deque(maxlen=capacity)       
 
-
-    def push(self, state, action, reward, done):
+    def push(self, *transition):
         """Saves a transition"""
-        
+        self.buffer.append(tuple(map(tuple, transition)))
 
-    def sample(self):
+    def sample(self, batch_size, device):
         """Sample a batch of transitions"""
-        
+        transitions = random.sample(self.buffer, batch_size)
+        return (torch.tensor(np.array(x), dtype=torch.float, device=device)
+                for x in zip(*transitions))
 
     def __len__(self):
         return self.size
@@ -38,12 +39,12 @@ class Net(nn.Module):
         super(Net, self).__init__()
 
         self.cnn = nn.Sequential(nn.Conv2d(4, 32, kernel_size=8, stride=4),
-                                        nn.ReLU(True),
-                                        nn.Conv2d(32, 64, kernel_size=4, stride=2),
-                                        nn.ReLU(True),
-                                        nn.Conv2d(64, 64, kernel_size=3, stride=1),
-                                 nn.ReLU(True)
-                                        )
+                                nn.ReLU(True),
+                                nn.Conv2d(32, 64, kernel_size=4, stride=2),
+                                nn.ReLU(True),
+                                nn.Conv2d(64, 64, kernel_size=3, stride=1),
+                                nn.ReLU(True)
+                                )
         self.classifier = nn.Sequential(nn.Linear(7*7*64, 512),
                                         nn.ReLU(True),
                                         nn.Linear(512, num_classes)
@@ -83,7 +84,7 @@ class DQN:
 
         ## TODO ##
         """Initialize replay buffer"""
-        #self._memory = ReplayMemory(...)
+        self._memory = ReplayMemory(capacity=args.capacity)
 
         ## config ##
         self.device = args.device
@@ -95,12 +96,24 @@ class DQN:
     def select_action(self, state, epsilon, action_space):
         '''epsilon-greedy based on behavior network'''
         ## TODO ##
-        
+        if random.random() < epsilon:
+            return action_space.sample()
 
-    def append(self, state, action, reward, done):
+        # else:
+        #     with torch.no_grad():
+        #         state = torch.from_numpy(np.array(state)).unsqueeze(0).permute(0, 3, 1, 2).to(self.device)
+        #         action = torch.argmax(self._behavior_net(state), 1).item()
+        # return action
+
+        with torch.no_grad():
+            q_values = self._behavior_net(torch.from_numpy(state).view(1, -1).to(self.device))
+            _, best_action_index = q_values.max(dim=1)
+        return best_action_index.item()
+        
+    def append(self, state, action, reward, next_state, done):
         ## TODO ##
         """Push a transition into replay buffer"""
-        #self._memory.push(...)
+        self._memory.push(state, [action], [reward], next_state, [int(done)])
 
     def update(self, total_steps):
         if total_steps % self.freq == 0:
@@ -110,13 +123,33 @@ class DQN:
 
     def _update_behavior_network(self, gamma):
         # sample a minibatch of transitions
-        state, action, reward, next_state, done = self._memory.sample()
+        state, action, reward, next_state, done = self._memory.sample(self.batch_size, self.device)
+
         ## TODO ##
+        state = state.permute(0, 3, 1, 2)
+        next_state = next_state.permute(0, 3, 1, 2)
+        
+        q_value = self._behavior_net(state) # 用model對當前state，得到預測的Q值:(batch_size, num_actions)
+        q_value = torch.gather(input=q_value, dim=1, index=action.long()) # 在預測的Q值tensor中選取相應的動作索引的元素，以得到預測的Q值。
+        with torch.no_grad():
+            q_next = self._target_net(next_state)
+            q_next, _ = torch.max(q_next, dim=1)
+            q_next = q_next.reshape(-1, 1) # 轉換成(batch_size, 1)
+            q_target = reward + gamma * q_next * (1 - done)
+        criterion = nn.MSELoss()
+        loss = criterion(q_value, q_target)
+
+        # optimize
+        self._optimizer.zero_grad()
+        loss.backward()
+        nn.utils.clip_grad_norm_(self._behavior_net.parameters(), 5)
+        self._optimizer.step()
         
 
     def _update_target_network(self):
         '''update target network by copying from behavior network'''
         ## TODO ##
+        self._target_net.load_state_dict(self._behavior_net.state_dict())
         
 
     def save(self, model_path, checkpoint=False):
@@ -150,6 +183,11 @@ def train(args, agent, writer):
         total_reward = 0
         state = env.reset()
         state, reward, done, _ = env.step(1) # fire first !!!
+        
+        if episode % 1000 == 0 and episode != 0:
+            model_path = f'model/dqn_breakout/dqn_breakout_episode={str(episode)}.pt'
+            agent.save(model_path, checkpoint=True)
+            test(args, agent, writer)
 
         for t in itertools.count(start=1):
             if total_steps < args.warmup:
@@ -162,11 +200,11 @@ def train(args, agent, writer):
                 epsilon = max(epsilon, args.eps_min)
 
             # execute action
-            state, reward, done, _ = env.step(action)
+            next_state, reward, done, _, _ = env.step(action)
 
             ## TODO ##
             # store transition
-            #agent.append(...)
+            agent.append(state, action, reward, next_state, done)
 
             if total_steps >= args.warmup:
                 agent.update(total_steps)
@@ -176,7 +214,7 @@ def train(args, agent, writer):
             if total_steps % args.eval_freq == 0:
                 """You can write another evaluate function, or just call the test function."""
                 test(args, agent, writer)
-                agent.save(args.model + "dqn_" + str(total_steps) + ".pt")
+                agent.save(args.model + "dqn_breakout_" + str(total_steps) + ".pt")
 
             total_steps += 1
             if done:
@@ -205,7 +243,7 @@ def test(args, agent, writer):
             time.sleep(0.01)
             env.render()
             action = agent.select_action(state, args.test_epsilon, action_space)
-            state, reward, done, _ = env.step(action)
+            state, reward, done, _, _ = env.step(action)
             e_reward += reward
 
         print('episode {}: {:.2f}'.format(i+1, e_reward))
@@ -219,11 +257,11 @@ def main():
     ## arguments ##
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('-d', '--device', default='cuda')
-    parser.add_argument('-m', '--model', default='ckpt/')
-    parser.add_argument('--logdir', default='log/dqn')
+    parser.add_argument('-m', '--model', default='model/dqn_breakout/')
+    parser.add_argument('--logdir', default='log/dqn_breakout')
     # train
     parser.add_argument('--warmup', default=20000, type=int)
-    parser.add_argument('--episode', default=20000, type=int)
+    parser.add_argument('--episode', default=20001, type=int)
     parser.add_argument('--capacity', default=100000, type=int)
     parser.add_argument('--batch_size', default=32, type=int)
     parser.add_argument('--lr', default=0.0000625, type=float)
@@ -235,7 +273,7 @@ def main():
     parser.add_argument('--eval_freq', default=200000, type=int)
     # test
     parser.add_argument('--test_only', action='store_true')
-    parser.add_argument('-tmp', '--test_model_path', default='ckpt/dqn_1000000.pt')
+    parser.add_argument('-tmp', '--test_model_path', default='model/dqn_breakout/dqn_breakout_1000000.pt')
     parser.add_argument('--render', action='store_true')
     parser.add_argument('--test_episode', default=10, type=int)
     parser.add_argument('--seed', default=20230422, type=int)

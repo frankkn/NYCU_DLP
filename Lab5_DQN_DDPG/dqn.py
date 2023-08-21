@@ -39,6 +39,7 @@ class ReplayMemory:
 class Net(nn.Module):
     def __init__(self, state_dim=8, action_dim=4, hidden_dim=64):
         super().__init__()
+        ## TODO ##
         self.layers = nn.Sequential(
             nn.Linear(state_dim, hidden_dim),
             nn.ReLU(inplace=True),
@@ -50,6 +51,7 @@ class Net(nn.Module):
         )
 
     def forward(self, x):
+        ## TODO ##
         out = self.layers(x)
         return out
 
@@ -60,6 +62,7 @@ class DQN:
         self._target_net = Net().to(args.device)
         # initialize target network
         self._target_net.load_state_dict(self._behavior_net.state_dict()) # fixed Q value from target network
+        ## TODO ##
         self._optimizer = optim.Adam(self._behavior_net.parameters(), lr=args.lr)
         # memory
         self._memory = ReplayMemory(capacity=args.capacity)
@@ -73,6 +76,7 @@ class DQN:
 
     def select_action(self, state, epsilon, action_space):
         '''epsilon-greedy based on behavior network'''
+        ## TODO ##
         if random.random() < epsilon:
             return action_space.sample()
         
@@ -88,8 +92,7 @@ class DQN:
         return best_action_index.item()
 
     def append(self, state, action, reward, next_state, done):
-        self._memory.append(state, [action], [reward / 10], next_state,
-                            [int(done)])
+        self._memory.append(state, [action], [reward / 10], next_state, [int(done)])
 
     def update(self, total_steps):
         if total_steps % self.freq == 0:
@@ -99,8 +102,7 @@ class DQN:
 
     def _update_behavior_network(self, gamma):
         # sample a minibatch of transitions
-        (state, action, reward, next_state, done) = self._memory.sample(
-            self.batch_size, self.device)
+        state, action, reward, next_state, done = self._memory.sample(self.batch_size, self.device)
 
         ## TODO ##
         # q_value = ?
@@ -135,6 +137,7 @@ class DQN:
 
     def _update_target_network(self):
         '''update target network by copying from behavior network'''
+        ## TODO ##
         self._target_net.load_state_dict(self._behavior_net.state_dict())
 
     def save(self, model_path, checkpoint=False):
@@ -215,6 +218,11 @@ def test(args, env, agent, writer):
         total_reward = 0
         # env.seed(seed)
         state = env.reset(seed=seed)
+        ## TODO ##
+        # ...
+        #     if done:
+        #         writer.add_scalar('Test/Episode Reward', total_reward, n_episode)
+        #         ...
         for t in itertools.count(start=1):
             if t == 1:
                 state = state[0]
