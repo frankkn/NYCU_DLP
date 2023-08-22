@@ -102,7 +102,11 @@ class DQN:
         else:
             with torch.no_grad():
                 # print(f"State shape before: {state.shape}")
-                state = torch.from_numpy(np.array(state)).unsqueeze(0).permute(0, 3, 1, 2).repeat(1, 4, 1, 1).to(self.device)
+                state = torch.from_numpy(np.array(state)).unsqueeze(0).permute(0, 3, 1, 2)
+                if state.size(1) == 1:
+                    state = state.repeat(1, 4, 1, 1).to(self.device)
+                else:
+                    state = state.to(self.device)
                 # print(f"State shape after: {state.shape}")
                 action = torch.argmax(self._behavior_net(state), 1).item()
 
@@ -203,10 +207,10 @@ def train(args, agent, writer):
         state = env.reset()
         state, reward, done, _ = env.step(1) # fire first !!!
         
-        if episode % 1000 == 0 and episode != 0:
-            model_path = f'model/dqn_breakout/dqn_breakout_episode={str(episode)}.pt'
-            agent.save(model_path, checkpoint=True)
-            test(args, agent, writer)
+        # if episode % 1000 == 0 and episode != 0:
+        #     model_path = f'model/dqn_breakout/dqn_breakout_episode={str(episode)}.pt'
+        #     agent.save(model_path, checkpoint=True)
+        #     test(args, agent, writer)
 
         for t in itertools.count(start=1):
             if total_steps < args.warmup:
