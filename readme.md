@@ -17,3 +17,9 @@ Implement ResNet18/ResNet50/ResNet152 architecture to analyze accurate lymphobla
 
 ## Lab4: Conditional VAE for Video Prediction
 Implement conditional video prediction in a VAE-based model.
+
+## Lab5: Deep Q-Network and Deep Deterministic Policy Gradient
+Implement two deep reinforcement algorithms by completing the following three tasks:
+(1) Solve LunarLander-v2 using deep Q-network (DQN)
+(2) Solve LunarLanderContinuous-v2 using deep deterministic policy gradient (DDPG).
+(3) Solve BreakoutNoFrameskip-v4 using deep Q-network (DQN)
