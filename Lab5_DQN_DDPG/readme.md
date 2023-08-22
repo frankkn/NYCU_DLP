@@ -19,7 +19,7 @@ Introduction: Rocket trajectory optimization is a classic topic in optimal contr
 
 * Four discrete actions available: Action [4]: 0 (No-op), 1 (Fire left engine), 2 (Fire main engine), 3 (Fire right engine)
 
-![LunarLander-v2](https://github.com/frankkn/NYCU_DLP/blob/master/Lab5_DQN_DDPG/images/LunarLander-v2.gif width="600" hight="300")
+<img src="https://github.com/frankkn/NYCU_DLP/blob/master/Lab5_DQN_DDPG/images/LunarLander-v2.gif" width="800" height="600" alt="LunarLander-v2">
 
 ## Game Environment – LunarLanderContinuous-v2
 * Introduction: same as LunarLander-v2.
