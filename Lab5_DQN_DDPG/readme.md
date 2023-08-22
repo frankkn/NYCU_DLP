@@ -1,5 +1,5 @@
 # Lab5: Deep Q-Network and Deep Deterministic Policy Gradient
-Implement two deep reinforcement algorithms by completing the following three tasks:
+Implement two deep reinforcement algorithms by completing the following three tasks:  
 (1) Solve LunarLander-v2 using deep Q-network (DQN)  
 (2) Solve LunarLanderContinuous-v2 using deep deterministic policy gradient (DDPG)   
 (3) Solve BreakoutNoFrameskip-v4 using deep Q-network (DQN)  
@@ -19,7 +19,7 @@ Introduction: Rocket trajectory optimization is a classic topic in optimal contr
 
 * Four discrete actions available: Action [4]: 0 (No-op), 1 (Fire left engine), 2 (Fire main engine), 3 (Fire right engine)
 
-![LunarLander-v2](https://github.com/frankkn/NYCU_DLP/blob/master/Lab5_DQN_DDPG/images/LunarLander-v2.gif)
+![LunarLander-v2](https://github.com/frankkn/NYCU_DLP/blob/master/Lab5_DQN_DDPG/images/LunarLander-v2.gif width="600" hight="300")
 
 ## Game Environment – LunarLanderContinuous-v2
 * Introduction: same as LunarLander-v2.
