@@ -278,6 +278,7 @@ def test(args, env, agent, writer):
         #         writer.add_scalar('Test/Episode Reward', total_reward, n_episode)
         #         ...
         for t in itertools.count(start=1):
+            # env.render()
             if t == 1:
                 state = state[0]
             # env.render()
