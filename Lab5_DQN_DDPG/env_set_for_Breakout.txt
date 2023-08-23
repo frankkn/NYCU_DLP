@@ -1,0 +1,36 @@
+如何裝Breakout環境
+
+conda create -n br python=3.9
+conda activate br
+conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
+
+
+pip install gym==0.15.7 
+// conda install -c conda-forge gym==0.15.7
+
+pip install tensorboard
+// conda install -c conda-forge tensorboard
+
+
+anaconda GUI 安裝opencv / libopencv / py-opencv
+// pip intstall opencv 
+// opencv / libopencv / py-opencv
+// conda install -c conda-forge opencv
+
+pip install gym[atari]
+
+//pip install gym[accept-rom-license]
+
+pip install swig
+
+conda install atari_py
+//pip install atari-py
+
+python -m atari_py.import_roms .
+
+我快被環境搞瘋ㄌ
+現在時間是2023/8/24 02:30a.m.
+
+
+
+
