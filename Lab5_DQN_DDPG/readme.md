@@ -27,11 +27,12 @@ Introduction: Rocket trajectory optimization is a classic topic in optimal contr
 * Action [2]:
     * Main engine: -1 to 0 off, 0 to +1 throttle from 50% to 100% power. Engine can't work with less than 50% power.
     * Left-right: -1.0 to -0.5 fire left engine, +0.5 to +1.0 fire right engine, -0.5 to 0.5 off
-
-![BreakoutNoFrameskip-v4](https://github.com/frankkn/NYCU_DLP/blob/master/Lab5_DQN_DDPG/images/BreakoutNoFrameskip-v4.gif)
-
 ## Game Environment – BreakoutNoFrameskip-v4
 Introduction: Another famous Atari game. The dynamics are similar to pong: You move a paddle and hit the ball in a brick wall at the top of the screen. Your goal is to destroy the brick wall. You can try to break through the wall and let the ball wreak havoc on the other side, all on its own! You have five lives. Detailed documentation can be found on the AtariAge page.
 
 * Observation: By default, the environment returns the RGB image that is displayed to human players as an observation.
 * Action [4]: 0 (No-op), 1 (Fire), 2 (Right), 3 (Left)
+
+
+<img src="https://github.com/frankkn/NYCU_DLP/blob/master/Lab5_DQN_DDPG/images/BreakoutNoFrameskip-v4.gif" width="400" height="600" alt="LunarLander-v2">
+
