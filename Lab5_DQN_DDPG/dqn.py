@@ -251,7 +251,7 @@ def main():
     parser.add_argument('--warmup', default=10000, type=int)
     parser.add_argument('--episode', default=1200, type=int)
     parser.add_argument('--capacity', default=10000, type=int)
-    parser.add_argument('--batch_size', default=128, type=int)
+    parser.add_argument('--batch_size', default=64, type=int)
     parser.add_argument('--lr', default=.0005, type=float)
     parser.add_argument('--eps_decay', default=.995, type=float)
     parser.add_argument('--eps_min', default=.01, type=float)
@@ -274,7 +274,7 @@ def main():
         new_model_path = f"model/dqn/dqn_ep={args.episode}.pth"
         agent.save(new_model_path) # new model
 
-    trained_model_path = "model/dqn/dqn_ep=500.pth"
+    trained_model_path = "model/dqn/dqn_episode=800.pth"
     agent.load(trained_model_path) # trained model 
     test(args, env, agent, writer)
 

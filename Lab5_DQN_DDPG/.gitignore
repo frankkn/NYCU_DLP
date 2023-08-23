@@ -1,6 +1,6 @@
-log
 __pycache__
-model/dqn
+model/ddpg
 model/dqn_breakout
 model/dqn_breakout2
 ROMS
+log/ddpg

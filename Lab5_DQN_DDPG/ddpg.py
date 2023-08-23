@@ -222,11 +222,11 @@ def train(args, env, agent, writer):
     print('Start Training')
     total_steps = 0
     ewma_reward = 0
-    for episode in range(args.episode):
+    for episode in range(1, args.episode+1):
         total_reward = 0
         state = env.reset()
 
-        if episode % 100 == 0 and episode != 0:
+        if episode % 100 == 0:
             model_path = f'model/ddpg/ddpg_episode={str(episode)}.pth'
             agent.save(model_path, checkpoint=True)
             test(args, env, agent, writer)
@@ -304,7 +304,7 @@ def main():
     parser.add_argument('--logdir', default='log/ddpg')
     # train
     parser.add_argument('--warmup', default=10000, type=int)
-    parser.add_argument('--episode', default=2001, type=int)
+    parser.add_argument('--episode', default=2000, type=int)
     parser.add_argument('--batch_size', default=128, type=int)
     parser.add_argument('--capacity', default=500000, type=int)
     parser.add_argument('--lra', default=1e-3, type=float)
@@ -321,8 +321,8 @@ def main():
     env = gym.make('LunarLanderContinuous-v2')
     agent = DDPG(args)
     writer = SummaryWriter(args.logdir)
-    # model_path = f'model/ddpg/ddpg_episode={args.episode}.pth'
-    model_path = "model/ddpg/ddpg_episode=1100.pth"
+    model_path = f'model/ddpg/ddpg_episode={args.episode}.pth'
+    # model_path = "model/ddpg/ddpg_episode=1100.pth"
     if not args.test_only:
         train(args, env, agent, writer)
         agent.save(model_path, checkpoint=True)
