@@ -322,7 +322,7 @@ def main():
     agent = DDPG(args)
     writer = SummaryWriter(args.logdir)
     model_path = f'model/ddpg/ddpg_episode={args.episode}.pth'
-    # model_path = "model/ddpg/ddpg_episode=900.pth"
+    # model_path = "model/ddpg/ddpg_ep=900.pth"
     if not args.test_only:
         train(args, env, agent, writer)
         agent.save(model_path, checkpoint=True)

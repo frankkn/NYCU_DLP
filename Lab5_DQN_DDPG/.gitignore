@@ -1,7 +1,8 @@
 __pycache__
-model/ddpg
 model/dqn_breakout
 model/dqn_breakout2
 ROMS
 HC ROMS
 log/ddpg
+log/dqn_breakout
+log/dqn_breakout2

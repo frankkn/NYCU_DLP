@@ -278,7 +278,7 @@ def main():
     parser.add_argument('--logdir', default='log/dqn_breakout2')
     # train
     parser.add_argument('--warmup', default=20000, type=int)
-    parser.add_argument('--episode', default=50001, type=int)
+    parser.add_argument('--episode', default=100001, type=int)
     parser.add_argument('--capacity', default=1000000, type=int)
     parser.add_argument('--batch_size', default=32, type=int)
     parser.add_argument('--lr', default=0.0000625, type=float)
@@ -290,7 +290,7 @@ def main():
     parser.add_argument('--eval_freq', default=500000, type=int)
     # test
     parser.add_argument('--test_only', action='store_true')
-    parser.add_argument('-tmp', '--test_model_path', default='model/dqn_breakout2/dqn_2200000.pt')
+    parser.add_argument('-tmp', '--test_model_path', default='model/dqn_breakout2/dqn_10500000.pt')
     parser.add_argument('--render', action='store_true')
     parser.add_argument('--test_episode', default=10, type=int)
     parser.add_argument('--seed', default=20230422, type=int)
@@ -300,7 +300,7 @@ def main():
     ## main ##
     agent = DQN(args)
     writer = SummaryWriter(args.logdir)
-    train_model_path = 'model/dqn_breakout2/dqn_1800000.pt'
+    # train_model_path = 'model/dqn_breakout2/dqn_1800000.pt'
     if args.test_only:
         agent.load(args.test_model_path)
         test(args, agent, writer)
