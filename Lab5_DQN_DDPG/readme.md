@@ -34,5 +34,5 @@ Introduction: Another famous Atari game. The dynamics are similar to pong: You m
 * Action [4]: 0 (No-op), 1 (Fire), 2 (Right), 3 (Left)
 
 
-<img src="https://github.com/frankkn/NYCU_DLP/blob/master/Lab5_DQN_DDPG/images/BreakoutNoFrameskip-v4.gif" width="400" height="600" alt="LunarLander-v2">
+<img src="https://github.com/frankkn/NYCU_DLP/blob/master/Lab5_DQN_DDPG/images/BreakoutNoFrameskip-v4.gif" width="400" height="600" alt="Breakout">
 
