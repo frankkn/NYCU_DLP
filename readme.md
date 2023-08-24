@@ -23,5 +23,3 @@ Implement two deep reinforcement algorithms by completing the following three ta
 (1) Solve LunarLander-v2 using deep Q-network (DQN)  
 (2) Solve LunarLanderContinuous-v2 using deep deterministic policy gradient (DDPG)  
 (3) Solve BreakoutNoFrameskip-v4 using deep Q-network (DQN)  
-
-<img src="https://github.com/frankkn/NYCU_DLP/blob/master/Lab5_DQN_DDPG/images/HW.jpg" width="300" height="300" alt="交作業大學">
