@@ -281,7 +281,7 @@ def test(args, env, agent, writer):
             # env.render()
             if t == 1:
                 state = state[0]
-            # env.render()
+            env.render()
             action = agent.select_action(state, noise=False)
             next_state, reward, done, _, _ = env.step(action)
             
@@ -321,8 +321,8 @@ def main():
     env = gym.make('LunarLanderContinuous-v2')
     agent = DDPG(args)
     writer = SummaryWriter(args.logdir)
-    model_path = f'model/ddpg/ddpg_episode={args.episode}.pth'
-    # model_path = "model/ddpg/ddpg_ep=900.pth"
+    # model_path = f'model/ddpg/ddpg_episode={args.episode}.pth'
+    model_path = "model/ddpg/ddpg_episode=1200.pth"
     if not args.test_only:
         train(args, env, agent, writer)
         agent.save(model_path, checkpoint=True)
