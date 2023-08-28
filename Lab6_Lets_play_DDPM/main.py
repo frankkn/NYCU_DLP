@@ -1,28 +1,17 @@
-import numpy as np
 from evaluator import evaluation_model
 from dataloader import iclevrLoader
-import json
 import argparse
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
 from torch.utils import data
-from torch.utils.data import Dataset
-import csv
-from torchvision import datasets, transforms
+from torchvision import transforms
 from torchvision.utils import save_image
-from torch.optim.lr_scheduler import StepLR
-from diffusers import UNet2DConditionModel, UNet2DModel
-from torch.utils.data import SubsetRandomSampler
+from diffusers import UNet2DModel
 import random
-import math
 import os
 from accelerate import Accelerator
 from diffusers.optimization import get_cosine_schedule_with_warmup
-from diffusers import DiffusionPipeline
 import torchvision
-import time
 import warnings
 from tqdm import tqdm
 
@@ -31,13 +20,12 @@ class Trainer:
     def __init__(self, args, model, optimizer, accelerator):
         self.args = args
         self.model = model
-        # self.train_loader = train_loader
         self.train_loader = None
         self.test_loader = data.DataLoader(iclevrLoader(root="./dataset/", mode="test"), batch_size=self.args.test_batch, shuffle=False)
         self.new_test_loader = data.DataLoader(iclevrLoader(root="./dataset/", mode="new_test"), batch_size=self.args.test_batch, shuffle=False)
 
         self.optimizer = optimizer
-        self.lr_scheduler = None # lr_scheduler
+        self.lr_scheduler = None 
         self.accelerator = accelerator
 
         self.timestep = 1000
@@ -78,9 +66,8 @@ class Trainer:
     def train(self, epoch):
         self.model.train()          
         device = self.args.device
-        pbar = tqdm(self.train_loader, ncols=150, desc=f"Training Epoch{epoch:3d}")
+        pbar = tqdm(self.train_loader, ncols=120, desc=f"Training Epoch {epoch}")
         for _, (data, cond) in enumerate(pbar):
-            # print(data.shape[0])
             data, cond = data.to(device, dtype=torch.float32), cond.to(device)
             cond = cond.squeeze()
             self.optimizer.zero_grad()
@@ -185,14 +172,14 @@ class Trainer:
         train_loader = data.DataLoader(dataset, batch_size=args.train_batch, shuffle=True, num_workers=args.num_workers)
         return train_loader
         
-                
+
 
 def main():
     parser = argparse.ArgumentParser(description='Diffusion_Pytorch_Model')
     parser.add_argument('-d', '--device',                            default='cuda')
     parser.add_argument('--train_batch',        type=int,            default=20)
     parser.add_argument('--test_batch',         type=int,            default=32)
-    parser.add_argument('--epochs',             type=int,            default=500)
+    parser.add_argument('--epochs',             type=int,            default=200)
     parser.add_argument('--lr',                 type=float,          default=1e-4 * 0.5)
     parser.add_argument('--gamma',              type=float,          default=0.7)
     parser.add_argument('--save-model',         action='store_true', default=True)
@@ -200,7 +187,7 @@ def main():
     parser.add_argument('--num_workers',        type=int,            default=14)
     parser.add_argument('--partial',            type=float,          default=1.0,     help="Part of the training dataset to be trained")
     parser.add_argument('--fast_train',         action='store_true')
-    parser.add_argument('--fast_partial',       type=float,          default=0.01,    help="Use part of the training data to fasten the convergence")
+    parser.add_argument('--fast_partial',       type=float,          default=0.4,    help="Use part of the training data to fasten the convergence")
     parser.add_argument('--fast_train_epoch',   type=int,            default=10,      help="Number of epoch to use fast train mode")
 
     args = parser.parse_args()
@@ -223,7 +210,6 @@ def main():
     # filtered_state_dict = {k[16:]: v for k, v in state_dict.items() if k =="class_embedding.weight" or k=="class_embedding.bias"}
     # model.class_embedding.load_state_dict(filtered_state_dict)
     # model = model.to(self.args.device)
-
     # sample(model, device, test_loader, args, "unettest")
     # sample(model, device, test_loader, args, "test_")
 
