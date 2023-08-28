@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 import torchvision.models as models
@@ -5,7 +6,7 @@ import torchvision.models as models
 '''===============================================================
 1. Title:     
 
-DLP summer 2023 Lab6 classifier
+DLP spring 2023 Lab7 classifier
 
 2. Purpose:
 
@@ -23,21 +24,18 @@ images and compare them with ground truth labels.
 
 4. How to use
 
-You may need to modify the checkpoint's path at line 40.
 You should call eval(images, labels) and to get total accuracy.
 images shape: (batch_size, 3, 64, 64)
 labels shape: (batch_size, 24) where labels are one-hot vectors
 e.g. [[1,1,0,...,0],[0,1,1,0,...],...]
-Images should be normalized with:
-transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 
 ==============================================================='''
 
 
 class evaluation_model():
     def __init__(self):
-        #modify the path to your own path
-        checkpoint = torch.load('./checkpoint.pth')
+        # modify the path to your own path
+        checkpoint = torch.load('dataset/checkpoint.pth')
         self.resnet18 = models.resnet18(pretrained=False)
         self.resnet18.fc = nn.Sequential(
             nn.Linear(512,24),
@@ -47,22 +45,30 @@ class evaluation_model():
         self.resnet18 = self.resnet18.cuda()
         self.resnet18.eval()
         self.classnum = 24
-    def compute_acc(self, out, onehot_labels):
+
+    def compute_acc(self, out, onehot_labels, filename):
         batch_size = out.size(0)
         acc = 0
         total = 0
         for i in range(batch_size):
-            k = int(onehot_labels[i].sum().item())
+            k = int(onehot_labels[i].sum().item()) 
             total += k
-            outv, outi = out[i].topk(k)
+            outv, outi = out[i].topk(k) 
             lv, li = onehot_labels[i].topk(k)
+            item_acc = 0
             for j in outi:
                 if j in li:
                     acc += 1
+                    item_acc += 1
+            # print(f"i:{i}, outi:{outi}, li:{li}")
+            # print(f"Object {str(i)} acc: {item_acc/k * 100:.2f}%")
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
+            with open(f'{filename}.txt', 'w') as test_record:
+                test_record.write(f'Task {i} : {item_acc/k * 100:.2f}%\n')
         return acc / total
-    def eval(self, images, labels):
+    def eval(self, images, labels, filename):
         with torch.no_grad():
             #your image shape should be (batch, 3, 64, 64)
             out = self.resnet18(images)
-            acc = self.compute_acc(out.cpu(), labels.cpu())
+            acc = self.compute_acc(out.cpu(), labels.cpu(), filename)
             return acc
