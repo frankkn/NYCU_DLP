@@ -23,3 +23,6 @@ Implement two deep reinforcement algorithms by completing the following three ta
 (1) Solve LunarLander-v2 using deep Q-network (DQN)  
 (2) Solve LunarLanderContinuous-v2 using deep deterministic policy gradient (DDPG)  
 (3) Solve BreakoutNoFrameskip-v4 using deep Q-network (DQN)  
+
+## Lab6: Let's play DDPM (Denoising Diffusion Probabilistic Model)
+Implement a conditional Denoising Diffusion Probabilistic Model (DDPM) to generate synthetic images according to multi-label conditions.

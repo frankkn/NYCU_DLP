@@ -1,5 +1,5 @@
 iclevr
-model
+model/Unet_epoch_*
 models
 log/epoch=*
 !log/epoch=200
