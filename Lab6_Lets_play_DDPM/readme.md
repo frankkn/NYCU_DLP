@@ -4,7 +4,7 @@ Implement a conditional Denoising Diffusion Probabilistic Model (DDPM) to genera
 ## Synthetic image grids
 
 * Test
-<img src="https://github.com/frankkn/NYCU_DLP/blob/master/Lab6_Lets_play_DDPM/demo/test/test_200.png" width="800" height="500" alt="test.json">
+<img src="https://github.com/frankkn/NYCU_DLP/blob/master/Lab6_Lets_play_DDPM/demo/test/test_200.png" width="800" height="450" alt="test.json">
 
 * New test
-<img src="https://github.com/frankkn/NYCU_DLP/blob/master/Lab6_Lets_play_DDPM/demo/new_test/new_test_200.png" width="800" height="500" alt="new_est.json">
+<img src="https://github.com/frankkn/NYCU_DLP/blob/master/Lab6_Lets_play_DDPM/demo/new_test/new_test_200.png" width="800" height="450" alt="new_est.json">
