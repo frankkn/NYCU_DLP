@@ -29,7 +29,7 @@ class Trainer:
         self.accelerator = accelerator
 
         self.timestep = 1000
-        self.beta = torch.linspace(1e-4, .001, self.timestep)
+        self.beta = torch.linspace(1e-4, .002, self.timestep)
         self.alpha = 1 - self.beta
         self.alpha_cumprod = torch.cumprod(self.alpha, dim=0) # 前t個 timestep 的 alpha 累積乘積
         self.sqrt_alpha_cumprod = torch.sqrt(self.alpha_cumprod)
@@ -177,7 +177,7 @@ class Trainer:
 def main():
     parser = argparse.ArgumentParser(description='Diffusion_Pytorch_Model')
     parser.add_argument('-d', '--device',                            default='cuda')
-    parser.add_argument('--train_batch',        type=int,            default=20)
+    parser.add_argument('--train_batch',        type=int,            default=40)
     parser.add_argument('--test_batch',         type=int,            default=32)
     parser.add_argument('--epochs',             type=int,            default=200)
     parser.add_argument('--lr',                 type=float,          default=1e-4 * 0.5)
@@ -192,33 +192,45 @@ def main():
 
     args = parser.parse_args()
     
+    # Training
     # model
-    model = UNet2DModel(sample_size=64, in_channels=3, out_channels=3, layers_per_block=2, class_embed_type=None, block_out_channels=(128, 128, 256, 256, 512, 512),
-                        down_block_types=("DownBlock2D", "DownBlock2D", "DownBlock2D", "DownBlock2D", "AttnDownBlock2D", "DownBlock2D"),
-                        up_block_types = ("UpBlock2D", "AttnUpBlock2D", "UpBlock2D", "UpBlock2D", "UpBlock2D", "UpBlock2D"),
-                        ).to(args.device)
-    model.class_embedding = nn.Linear(24, 512)
-    model = model.to(args.device)
+    # model = UNet2DModel(sample_size=64, in_channels=3, out_channels=3, layers_per_block=2, class_embed_type=None, block_out_channels=(128, 128, 256, 256, 512, 512),
+    #                     down_block_types=("DownBlock2D", "DownBlock2D", "DownBlock2D", "DownBlock2D", "AttnDownBlock2D", "DownBlock2D"),
+    #                     up_block_types = ("UpBlock2D", "AttnUpBlock2D", "UpBlock2D", "UpBlock2D", "UpBlock2D", "UpBlock2D"),
+    #                     ).to(args.device)
+    # model.class_embedding = nn.Linear(24, 512)
+    # model = model.to(args.device)
 
-    # optimizer
+    # # optimizer
+    # optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
+
+    # # Accelerator
+    # accelerator = Accelerator()
+    # model, optimizer = accelerator.prepare(model, optimizer)
+
+    # trainer = Trainer(args, model, optimizer, accelerator)
+    # trainer.train_epoch(args.epochs)
+
+
+    # DEMO: load model and generate images
+    model = UNet2DModel.from_pretrained(pretrained_model_name_or_path ="./model/Unet_epoch_200", variant="non_ema", from_tf=True, low_cpu_mem_usage=False, ignore_mismatched_sizes=True)
+    model.class_embedding = nn.Linear(24 ,512)
+    state_dict = torch.load("./model/UNet_epoch_200/diffusion_pytorch_model.non_ema.bin")
+    filtered_state_dict = {k[16:]: v for k, v in state_dict.items() if k =="class_embedding.weight" or k=="class_embedding.bias"}
+    model.class_embedding.load_state_dict(filtered_state_dict)
+    model = model.to(args.device)
+    test_loader = data.DataLoader(iclevrLoader(root="./dataset/", mode="test"), batch_size=args.test_batch, shuffle=False)
+    new_test_loader = data.DataLoader(iclevrLoader(root="./dataset/", mode="new_test"), batch_size=args.test_batch, shuffle=False)
+
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
 
-    # load model
-    # model = UNet2DModel.from_pretrained(pretrained_model_name_or_path =f"./model/Unet_epoch_{str(epoch)}", variant="non_ema", from_tf=True, low_cpu_mem_usage=False, ignore_mismatched_sizes=True)
-    # model.class_embedding = nn.Linear(24 ,512)
-    # state_dict = torch.load(f"./model/UNet_epoch_{epoch}/diffusion_pytorch_model.non_ema.bin")
-    # filtered_state_dict = {k[16:]: v for k, v in state_dict.items() if k =="class_embedding.weight" or k=="class_embedding.bias"}
-    # model.class_embedding.load_state_dict(filtered_state_dict)
-    # model = model.to(self.args.device)
-    # sample(model, device, test_loader, args, "unettest")
-    # sample(model, device, test_loader, args, "test_")
-
-    # Accelerator
     accelerator = Accelerator()
     model, optimizer = accelerator.prepare(model, optimizer)
 
-    trainer = Trainer(args, model, optimizer, accelerator)
-    trainer.train_epoch(args.epochs)
+    tester = Trainer(args, model, optimizer, accelerator)
+    tester.sample(model, args.device, test_loader, args, "./demo/test/test_200")
+    tester.sample(model, args.device, new_test_loader, args, "./demo/new_test/new_test_200")
+
 
 if __name__ == '__main__':
     main()

@@ -63,7 +63,7 @@ class evaluation_model():
             # print(f"i:{i}, outi:{outi}, li:{li}")
             # print(f"Object {str(i)} acc: {item_acc/k * 100:.2f}%")
             os.makedirs(os.path.dirname(filename), exist_ok=True)
-            with open(f'{filename}.txt', 'w') as test_record:
+            with open(f'{filename}.txt', 'a') as test_record:
                 test_record.write(f'Task {i} : {item_acc/k * 100:.2f}%\n')
         return acc / total
     def eval(self, images, labels, filename):

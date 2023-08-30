@@ -1,8 +1,8 @@
 iclevr
 model
 models
-log
+log/epoch=*
+!log/epoch=200
 logs
 results
-code
 __pycache__
